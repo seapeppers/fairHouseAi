@@ -24,7 +24,7 @@ VITE_USE_MOCK=false npm run dev
 - `/signin`: Sign in with Box (mock mode also has "sign in as property manager")
 - `/`: dashboard (analyst)
 - `/households/:id`: review: document + highlighted proof, one finding at a time
-- `/households/:id/decision`: approve / request info / not eligible, required reason, Box Sign
+- `/households/:id/decision`: approve / request info / not eligible, required reason, signed with Box sign-in
 - `/households/:id/record`: signed audit record
 - `/upload`: property manager upload for requested documents
 
