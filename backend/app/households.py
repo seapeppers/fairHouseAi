@@ -3,9 +3,11 @@
 Every Box call runs as the signed-in user (see auth.current_user), so what a
 person can see still follows their Box folder permissions.
 
-For the demo, the check returns the precomputed result for each household
-(app/demo_results.json, the same answer key the frontend's mock uses), with
-evidence pointed at the real Box file ids so the viewer can stream them.
+The check shows the webhook agent's result for the household when it has one
+(Reviews / Agent results, see agent_results.py). CHECK_SOURCE picks the source:
+"agent" (agent only), "demo" (the precomputed app/demo_results.json, the same
+answer key the frontend's mock uses) or "auto" (agent, else demo). Every result
+says which one it came from in "source".
 Decisions are written to Box: the AI review to Reviews / AI reviews, the
 signed record (locked) to Reviews / Final decisions, and the fairhouseReview
 metadata on the household folder. Tenant documents are never modified.
@@ -31,12 +33,13 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from . import config
+from . import agent_results, config
 from .auth import User, current_user, require_role
 
 router = APIRouter()
 
 DEMO_RESULTS = json.loads((Path(__file__).parent / "demo_results.json").read_text())
+RULES_VERSION = next(iter(DEMO_RESULTS.values()))["rules_version"]
 DEMOGRAPHIC = re.compile(r"demographic", re.I)
 UNIT_FOLDER = re.compile(r"^Unit\s+(?P<unit>\S+)\s*-\s*(?P<name>.+)$")
 DECISION_STATUS = {"approve": "Approved", "request_info": "Waiting on documents", "not_eligible": "Not eligible"}
@@ -106,12 +109,30 @@ def box_folder(user: User = Depends(current_user)):
     }
 
 
+def _agent_result(user: User, household_id: str) -> dict | None:
+    if config.CHECK_SOURCE == "demo":
+        return None
+    return agent_results.load(user, _review_folder(user, "Agent results"), household_id)
+
+
+def _summary(user: User, household_id: str, unit: str) -> dict | None:
+    """Status fields for the dashboard, from the same source the check uses."""
+    agent = _agent_result(user, household_id) if user.role == "analyst" else None
+    if agent:
+        reasons = agent.get("reasons") or []
+        return {"status": agent.get("status"), "summary": reasons[0] if reasons else None,
+                "projected_annual_income": agent.get("projected_annual_income"),
+                "income_limit": agent.get("income_limit"),
+                "missing_documents": [r for r in reasons if agent_results.MISSING.search(r)]}
+    return None if config.CHECK_SOURCE == "agent" else DEMO_RESULTS.get(unit)
+
+
 @router.get("/households")
 def households(user: User = Depends(current_user)):
     building = _building_name(user)
     out = []
     for folder_id, unit, name in _unit_folders(user):
-        demo = DEMO_RESULTS.get(unit)
+        demo = _summary(user, folder_id, unit)
         record = _records.get(folder_id)
         files = _files(user, folder_id)
         uploads = _uploads.get(folder_id, [])
@@ -144,10 +165,20 @@ def households(user: User = Depends(current_user)):
 @router.post("/households/{household_id}/check")
 def check(household_id: str, user: User = Depends(require_role("analyst"))):
     unit, name = _household(user, household_id)
+    files = _files(user, household_id)
+    agent = _agent_result(user, household_id)
+    if agent:
+        _uploads.pop(household_id, None)
+        result = agent_results.to_check_result(user, agent, household_id, unit, name, _building_name(user),
+                                               files, RULES_VERSION)
+        result["documents"] = [{**d, "label": _label(d["file_name"])} for d in result["documents"]]
+        return result
+    if config.CHECK_SOURCE == "agent":
+        raise HTTPException(404, "The agent has not produced a result for this household yet")
     demo = DEMO_RESULTS.get(unit)
     if not demo:
         raise HTTPException(404, "No check available for this household yet")
-    by_name = {f.name: f.id for f in _files(user, household_id) if not DEMOGRAPHIC.search(f.name)}
+    by_name = {f.name: f.id for f in files if not DEMOGRAPHIC.search(f.name)}
 
     def evidence(e: dict) -> dict:
         return {**e, "file_id": by_name.get(e["file_name"], e["file_id"])}
@@ -162,6 +193,7 @@ def check(household_id: str, user: User = Depends(require_role("analyst"))):
             {**d, "file_id": by_name[d["file_name"]]} for d in demo.get("documents", []) if d["file_name"] in by_name
         ],
         "steps": [{**s, "evidence": [evidence(e) for e in s["evidence"]]} for s in demo["steps"]],
+        "source": "demo",
     }
 
 
@@ -238,6 +270,10 @@ def _pdf(lines: list[str]) -> bytes:
     return out
 
 
+def _dollars(v) -> str:
+    return f"${v:,}" if v is not None else "unknown"
+
+
 @router.post("/households/{household_id}/decision")
 def decide(household_id: str, body: DecisionInput, user: User = Depends(require_role("analyst"))):
     if body.decision not in DECISION_STATUS:
@@ -264,7 +300,7 @@ def decide(household_id: str, body: DecisionInput, user: User = Depends(require_
         f"Decided by: {user.name} ({user.login})",
         f"Decided at: {now.isoformat()}",
         f"AI suggestion (reference only): {result['status']}",
-        f"Projected income: ${result['projected_annual_income']:,} / limit ${result['income_limit']:,}",
+        f"Projected income: {_dollars(result['projected_annual_income'])} / limit {_dollars(result['income_limit'])}",
         f"Reason: {body.note}",
     ]
     if body.requested_documents:
@@ -284,17 +320,17 @@ def decide(household_id: str, body: DecisionInput, user: User = Depends(require_
 
     labels = {
         "Status": DECISION_STATUS[body.decision],
-        "Projected income": f"${result['projected_annual_income']:,}",
-        "Income limit": f"${result['income_limit']:,}",
+        "Projected income": _dollars(result["projected_annual_income"]),
+        "Income limit": _dollars(result["income_limit"]),
         "Reviewed by": user.name,
         "Reviewed at": now.strftime("%b %-d, %Y"),
     }
     try:
         user.box.folder_metadata.create_folder_metadata_by_id(
             household_id, CreateFolderMetadataByIdScope.ENTERPRISE, "fairhouseReview",
-            {"status": labels["Status"], "projectedIncome": float(result["projected_annual_income"]),
-             "incomeLimit": float(result["income_limit"]), "reviewedBy": user.name,
-             "reviewedAt": now.strftime("%Y-%m-%dT00:00:00Z")},
+            {"status": labels["Status"], "reviewedBy": user.name, "reviewedAt": now.strftime("%Y-%m-%dT00:00:00Z"),
+             **{k: float(result[f]) for k, f in (("projectedIncome", "projected_annual_income"),
+                                                 ("incomeLimit", "income_limit")) if result[f] is not None}},
         )
     except BoxAPIError:
         pass  # Template missing, or labels already set: the record itself is what counts.

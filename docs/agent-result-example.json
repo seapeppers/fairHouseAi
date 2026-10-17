@@ -1,0 +1,35 @@
+{
+  "household_folder_id": "428478249320",
+  "generated_at": "2026-10-17T18:30:00Z",
+  "name": "Maria Lopez",
+  "unit": "2A",
+  "household_size": 1,
+  "unit_ami_pct": 60,
+  "income_limit": 69060,
+  "annual_wage_income_from_stubs": 49920.0,
+  "bank_statement_months_provided": 3,
+  "payroll_deposits_in_bank": 11067.84,
+  "non_payroll_deposits": [
+    {"date": "2026-07-14", "description": "ONLINE RETAILER REFUND", "amount": 42.1},
+    {"date": "2026-08-09", "description": "TRANSFER FROM SAVINGS x2210", "amount": 200.0},
+    {"date": "2026-09-30", "description": "INTEREST PAID", "amount": 0.84}
+  ],
+  "status": "QUALIFIES",
+  "projected_annual_income": 49920.0,
+  "reasons": [
+    "Wages: $24.00/hr x 2,080 hours = $49,920.00 (pay stubs).",
+    "Projected annual income of $49920.00 is within the $69060.00 income limit."
+  ],
+  "facts": [
+    {"step": "documents", "label": "July statement", "value": "Statement period: July 1, 2026 - July 31, 2026", "file_id": "2533013572529"},
+    {"step": "documents", "label": "August statement", "value": "Statement period: August 1, 2026 - August 31, 2026", "file_id": "2533013090079"},
+    {"step": "documents", "label": "September statement", "value": "Statement period: September 1, 2026 - September 30, 2026", "file_id": "2533010015983"},
+    {"step": "wages", "label": "Hourly rate", "value": "Hourly rate: $24.00", "file_id": "2533012286097"},
+    {"step": "wages", "label": "Declared annual wages", "value": "$49,920.00", "file_id": "2533015086165"},
+    {"step": "deposits", "label": "Payroll deposit", "value": "$1,581.12", "context": "07/03/2026", "file_id": "2533013572529"},
+    {"step": "deposits", "label": "Net pay on stub", "value": "Net pay: $1,581.12", "file_id": "2533012286097", "page": 1},
+    {"step": "deposits", "label": "Refund (not income)", "value": "ONLINE RETAILER REFUND", "file_id": "2533013572529"},
+    {"step": "limit", "label": "Household size", "value": "Household size: 1", "file_id": "2533015086165"},
+    {"step": "limit", "label": "Unit AMI", "value": "60% AMI", "file_id": "2533015086165"}
+  ]
+}

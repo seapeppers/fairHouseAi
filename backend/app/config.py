@@ -34,5 +34,9 @@ SERVICE_TOKEN_FILE = str(REPO_ROOT / "backend" / ".box_service_token.json")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
 SESSION_SECRET = _require("SESSION_SECRET")
 
+# Where /check gets its result: "agent" (webhook agent only), "demo" (precomputed answer key)
+# or "auto" (agent when it has a result for the household, else demo).
+CHECK_SOURCE = os.environ.get("CHECK_SOURCE", "auto")
+
 AWS_REGION = os.environ.get("AWS_REGION", "us-west-2")
 BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-opus-4-6-v1")
