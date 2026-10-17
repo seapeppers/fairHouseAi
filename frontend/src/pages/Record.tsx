@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { api } from '../api'
-import { CheckIcon, FolderIcon } from '../components/Icons'
+import { CheckIcon, FolderIcon, LockIcon } from '../components/Icons'
 import { FlowHeader } from '../components/Shell'
-import { ProgressPills, Spinner } from '../components/ui'
+import { BoxMark, money, ProgressPills, Spinner } from '../components/ui'
 import type { AuditRecord, CheckResult } from '../types'
 
 const DECISION_TEXT = {
@@ -20,7 +20,7 @@ export default function Record() {
 
   useEffect(() => {
     api.record(id).then(setRecord)
-    api.check(id).then(setResult)
+    api.check(id, { quick: true }).then(setResult)
   }, [id])
 
   if (record === null) return <Navigate to={`/households/${id}`} replace />
@@ -38,8 +38,15 @@ export default function Record() {
   })
   const subtitle =
     record.decision === 'request_info'
-      ? `The property manager has a Box task for ${record.requested_documents.length} requested document${record.requested_documents.length === 1 ? '' : 's'}.`
-      : 'The household’s file in Box now includes this signed record.'
+      ? `The property manager sees ${record.requested_documents.length} requested document${record.requested_documents.length === 1 ? '' : 's'} on their upload page. This household now shows “Waiting on documents”.`
+      : 'The household’s folder in Box now includes this signed record.'
+  const labels = record.box_metadata ?? {
+    Status: DECISION_TEXT[record.decision],
+    'Projected income': money(result.projected_annual_income),
+    'Income limit': money(result.income_limit),
+    'Reviewed by': record.decided_by,
+    'Reviewed at': new Date(record.decided_at).toLocaleDateString('en-US', { dateStyle: 'medium' }),
+  }
 
   const rows: [string, React.ReactNode][] = [
     ['Decision', <strong className="font-semibold">{DECISION_TEXT[record.decision]}</strong>],
@@ -104,11 +111,48 @@ export default function Record() {
               </div>
             ))}
           </dl>
-          <div className="flex items-center gap-2 border-t border-mist-deep bg-[#F7F8F4] px-7 py-4 text-[13px] text-muted">
-            <FolderIcon className="text-evergreen" />
-            {record.box_path}
-          </div>
         </article>
+
+        <section aria-label="Saved to Box" className="mt-5 rounded-[20px] bg-white px-7 py-5 shadow-[0_0_0_1px_var(--color-line)]">
+          <div className="flex flex-wrap items-center gap-3">
+            <BoxMark size={26} />
+            <h2 className="text-lg font-semibold">What changed in Box</h2>
+            {record.audit_url && (
+              <a href={record.audit_url} target="_blank" rel="noreferrer" className="ml-auto text-sm font-medium">
+                Open in Box ↗
+              </a>
+            )}
+          </div>
+          <ul className="mt-3 flex list-none flex-col gap-3 p-0 text-sm">
+            <li className="flex items-start gap-2.5">
+              <FolderIcon className="mt-0.5 flex-none text-evergreen" />
+              <span>
+                <strong className="font-semibold">Signed record added</strong>
+                <span className="block text-muted">{record.box_path}</span>
+              </span>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <CheckIcon className="mt-0.5 flex-none text-evergreen" />
+              <span className="min-w-0">
+                <strong className="font-semibold">Folder labels updated</strong>
+                <span className="mt-1.5 flex flex-wrap gap-1.5">
+                  {Object.entries(labels).map(([k, v]) => (
+                    <span key={k} className="rounded-md bg-evergreen-wash px-2 py-0.5 text-[13px] shadow-[0_0_0_1px_var(--color-evergreen-tint)]">
+                      <span className="text-muted">{k}:</span> {v}
+                    </span>
+                  ))}
+                </span>
+              </span>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <LockIcon className="mt-0.5 flex-none text-evergreen" />
+              <span>
+                <strong className="font-semibold">Tenant documents unchanged</strong>
+                <span className="block text-muted">The original files are kept exactly as uploaded, as evidence.</span>
+              </span>
+            </li>
+          </ul>
+        </section>
 
         <div className="mt-6 flex flex-wrap gap-3">
           <Link
@@ -117,16 +161,6 @@ export default function Record() {
           >
             Back to households →
           </Link>
-          {record.audit_url && (
-            <a
-              href={record.audit_url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex min-h-[50px] items-center rounded-xl bg-white px-5 text-ink no-underline shadow-[0_0_0_1px_var(--color-line)]"
-            >
-              Open record in Box
-            </a>
-          )}
         </div>
       </main>
     </div>

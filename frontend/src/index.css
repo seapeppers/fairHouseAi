@@ -64,3 +64,17 @@
   background: rgba(30, 74, 56, 0.1);
   box-shadow: 0 0 0 1px rgba(30, 74, 56, 0.35);
 }
+
+/* Walkthrough beat timer and check progress. */
+@keyframes fill-bar {
+  from { width: 0; }
+  to { width: 100%; }
+}
+.animate-fill {
+  animation-name: fill-bar;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-fill { animation-duration: 0s !important; }
+}

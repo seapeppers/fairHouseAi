@@ -1,15 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api'
 import { CheckIcon, DocQuestionIcon, UploadIcon } from '../components/Icons'
 import { HomeHeader } from '../components/Shell'
-import { PrimaryButton, Spinner } from '../components/ui'
+import { ErrorState, PrimaryButton, Spinner } from '../components/ui'
 import type { HouseholdSummary } from '../types'
 
 const STATUS_FOR_PM = {
   QUALIFIES: 'All documents received',
-  NOT_QUALIFIED: 'Decision made by the city',
-  MISSING_INFO: '1 document requested',
-  NEEDS_REVIEW: 'Under review by the city',
+  NOT_QUALIFIED: 'Decision made',
+  MISSING_INFO: 'Documents requested',
+  NEEDS_REVIEW: 'Under review',
 }
 
 function RequestCard({ h }: { h: HouseholdSummary }) {
@@ -37,19 +37,19 @@ function RequestCard({ h }: { h: HouseholdSummary }) {
           <CheckIcon size={22} />
         </span>
         <div>
-          <h2 className="text-lg font-semibold">Sent to the city</h2>
+          <h2 className="text-lg font-semibold">Sent for review</h2>
           <p className="text-muted">
-            {file?.name} is in the secure Box folder for {h.name}, Unit {h.unit}. The city will re-check this household.
+            {file?.name} is in the secure Box folder for {h.name}, Unit {h.unit}. The reviewer is notified to re-check this household.
           </p>
         </div>
       </section>
     )
 
   return (
-    <section aria-label="Requests from the city" className="mt-7 rounded-[20px] bg-white px-[26px] py-6 shadow-[0_0_0_1.5px_var(--color-evergreen)]">
+    <section aria-label="Document requests" className="mt-7 rounded-[20px] bg-white px-[26px] py-6 shadow-[0_0_0_1.5px_var(--color-evergreen)]">
       <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-warn-tint px-2.5 py-0.5 text-[13px] font-semibold text-warn">
-          <DocQuestionIcon /> Requested by the city
+          <DocQuestionIcon /> Requested by your reviewer
         </span>
         <h2 className="text-lg font-semibold">
           {h.name} · Unit {h.unit}
@@ -99,9 +99,9 @@ function RequestCard({ h }: { h: HouseholdSummary }) {
       {state === 'error' && <p role="alert" className="mt-3 text-sm text-fail">Upload failed. Please try again.</p>}
       <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3">
         <PrimaryButton disabled={!file || state === 'sending'} onClick={send}>
-          {state === 'sending' ? 'Sending to Box…' : 'Send to the city'}
+          {state === 'sending' ? 'Sending to Box…' : 'Send for review'}
         </PrimaryButton>
-        <span className="text-[13px] text-muted">Files go straight to the city’s secure Box folder for this unit.</span>
+        <span className="text-[13px] text-muted">Files go straight to the secure Box folder for this unit.</span>
       </div>
     </section>
   )
@@ -109,10 +109,14 @@ function RequestCard({ h }: { h: HouseholdSummary }) {
 
 export default function Upload() {
   const [households, setHouseholds] = useState<HouseholdSummary[] | null>(null)
+  const [error, setError] = useState(false)
 
-  useEffect(() => {
-    api.households().then(setHouseholds)
+  const load = useCallback(() => {
+    setError(false)
+    api.households().then(setHouseholds).catch(() => setError(true))
   }, [])
+
+  useEffect(load, [load])
 
   const requests = households?.filter((h) => (h.missing_documents ?? []).length > 0) ?? []
 
@@ -121,9 +125,13 @@ export default function Upload() {
       <HomeHeader variant="property_manager" />
       <main className="mx-auto max-w-[1120px] px-8 pt-5 pb-12">
         <h1 className="font-serif text-4xl leading-tight font-semibold">{households?.[0]?.building ?? 'Juniper Court Apartments'}</h1>
-        <p className="mt-1.5 text-muted">Upload tenant income documents for the Seattle Office of Housing. You can only see this building.</p>
+        <p className="mt-1.5 text-muted">Upload tenant income documents for review. You can only see this building.</p>
 
-        {!households ? (
+        {error ? (
+          <div className="mt-8">
+            <ErrorState message="Couldn’t load your building from Box." onRetry={load} />
+          </div>
+        ) : !households ? (
           <div className="mt-8">
             <Spinner label="Loading your building from Box…" />
           </div>
@@ -139,15 +147,23 @@ export default function Upload() {
                   <span className="flex-[1_1_240px] font-semibold">
                     {h.name} · Unit {h.unit}
                   </span>
-                  <span className={`text-sm ${h.status === 'MISSING_INFO' ? 'text-warn' : 'text-muted'}`}>
-                    {h.status ? STATUS_FOR_PM[h.status] : 'Waiting for documents'}
+                  <span className={`text-sm ${(h.missing_documents ?? []).length ? 'text-warn' : 'text-muted'}`}>
+                    {h.new_documents?.length
+                      ? 'Sent, waiting for re-check'
+                      : (h.missing_documents ?? []).length
+                        ? 'Documents requested'
+                        : h.decided
+                          ? 'Decision made'
+                          : h.status
+                            ? STATUS_FOR_PM[h.status]
+                            : 'Waiting for documents'}
                   </span>
                 </li>
               ))}
             </ul>
           </>
         )}
-        <p className="mt-5 text-[13px] text-muted">Property managers upload documents only. Eligibility decisions are made by the Seattle Office of Housing.</p>
+        <p className="mt-5 text-[13px] text-muted">Property managers upload documents only. Eligibility decisions are made by the compliance reviewer.</p>
       </main>
     </div>
   )

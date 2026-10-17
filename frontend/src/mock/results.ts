@@ -248,5 +248,9 @@ export const MOCK_HOUSEHOLDS: HouseholdSummary[] = [C, B, A].map((id) => {
     projected_annual_income: r.projected_annual_income,
     income_limit: r.income_limit,
     missing_documents: id === B ? ['Bank statement, September 2026'] : [],
+    files: [
+      ...(r.documents ?? []).map((d) => ({ file_name: d.file_name, label: d.label })),
+      ...r.excluded_documents.map((d) => ({ file_name: d.file_name, label: 'Demographic form', excluded: true })),
+    ],
   }
 })

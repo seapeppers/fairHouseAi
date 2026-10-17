@@ -14,7 +14,7 @@ export function Logo({ size = 28 }: { size?: number }) {
         <path d="M8 15.5 15 9l7 6.5V22H8z" stroke="#F3F4F0" strokeWidth="1.8" strokeLinejoin="round" />
         <path d="m11.8 17.6 2.3 2.2 4.3-4.3" stroke="#F3E39A" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <span className="font-serif text-[19px] font-semibold">FairHouse</span>
+      <span className="font-serif text-[19px] font-semibold">FairHouse AI</span>
     </Link>
   )
 }
@@ -124,5 +124,33 @@ export function SecondaryButton({ children, className = '', ...props }: React.Bu
     >
       {children}
     </button>
+  )
+}
+
+/** Small Box wordmark chip, so Box-backed data is easy to spot. */
+export function BoxMark({ size = 22 }: { size?: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-grid flex-none place-items-center rounded-md bg-[#0061D5] font-bold text-white"
+      style={{ width: size, height: size, fontSize: size * 0.42 }}
+    >
+      box
+    </span>
+  )
+}
+
+/** A failure message that always offers a way forward. */
+export function ErrorState({ message, onRetry, children }: { message: string; onRetry?: () => void; children?: ReactNode }) {
+  return (
+    <div role="alert" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-fail-tint px-5 py-4 text-fail">
+      <span className="font-medium">{message}</span>
+      {onRetry && (
+        <button onClick={onRetry} className="cursor-pointer rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-ink shadow-[0_0_0_1px_var(--color-line)] hover:bg-mist">
+          Try again
+        </button>
+      )}
+      {children}
+    </div>
   )
 }

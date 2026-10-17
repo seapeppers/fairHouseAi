@@ -66,8 +66,19 @@ export interface HouseholdSummary {
   projected_annual_income?: number
   income_limit?: number
   missing_documents?: string[]
+  /** Files in the household's Box folder, including excluded ones. */
+  files?: { file_name: string; label: string; excluded?: boolean }[]
+  /** Files uploaded since the last check; the household needs a fresh check. */
+  new_documents?: string[]
   /** Set once an analyst has signed a decision. */
   decided?: Pick<AuditRecord, 'decision' | 'record_id'>
+}
+
+/** The Box folder the dashboard reads from. */
+export interface BoxFolder {
+  name: string
+  url?: string
+  synced_at: string
 }
 
 export type DecisionKind = 'approve' | 'request_info' | 'not_eligible'
@@ -88,7 +99,13 @@ export interface AuditRecord {
   decided_at: string
   ai_status: Status
   evidence: Evidence[]
+  /** Link to the signed record in Box, when the backend has one. */
   audit_url?: string
   box_path: string
   rules_version: string
+  /** Labels applied to the household's Box folder (fairhouseReview template). */
+  box_metadata?: Record<string, string>
+  /** Shown in the audit log. */
+  household_name?: string
+  unit?: string
 }

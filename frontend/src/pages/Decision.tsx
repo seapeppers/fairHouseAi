@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { PenIcon } from '../components/Icons'
 import { FlowHeader } from '../components/Shell'
-import { money, PrimaryButton, ProgressPills, RESULT, Spinner, StatusBadge } from '../components/ui'
+import { ErrorState, money, PrimaryButton, ProgressPills, RESULT, Spinner, StatusBadge } from '../components/ui'
 import type { CheckResult, DecisionKind } from '../types'
 import { visitedKey } from './Review'
 
@@ -17,6 +17,15 @@ function suggestedRequests(r: CheckResult): string[] {
   return out
 }
 
+/** One-click starting points for the reason; the reviewer can edit them. */
+const REASONS: Record<DecisionKind, string> = {
+  approve: 'Income verified against pay stubs and bank deposits, and it is under the limit for this unit.',
+  request_info: 'The file is missing documents needed to finish the income review.',
+  not_eligible: 'Verified income is over the limit for this unit and household size.',
+}
+
+const MIN_REASON = 10
+
 export default function Decision() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
@@ -26,13 +35,20 @@ export default function Decision() {
   const [note, setNote] = useState('')
   const [signing, setSigning] = useState(false)
   const [error, setError] = useState('')
+  const [loadError, setLoadError] = useState(false)
 
-  useEffect(() => {
-    api.check(id).then((r) => {
-      setResult(r)
-      setRequested(suggestedRequests(r))
-    })
+  const load = useCallback(() => {
+    setLoadError(false)
+    api
+      .check(id, { quick: true })
+      .then((r) => {
+        setResult(r)
+        setRequested(suggestedRequests(r))
+      })
+      .catch(() => setLoadError(true))
   }, [id])
+
+  useEffect(load, [load])
 
   const suggestions = useMemo(() => (result ? suggestedRequests(result) : []), [result])
   const reviewed = useMemo(() => {
@@ -43,6 +59,12 @@ export default function Decision() {
     }
   }, [id])
 
+  if (loadError)
+    return (
+      <div className="grid min-h-screen place-items-center px-8">
+        <ErrorState message="Couldn’t load this review." onRetry={load} />
+      </div>
+    )
   if (!result)
     return (
       <div className="grid min-h-screen place-items-center">
@@ -50,7 +72,16 @@ export default function Decision() {
       </div>
     )
 
-  const canSign = decision !== null && note.trim().length >= 10 && (decision !== 'request_info' || requested.length > 0)
+  const todo = [
+    decision === null && 'choose a decision',
+    decision === 'request_info' && requested.length === 0 && 'pick at least one document to request',
+    note.trim().length < MIN_REASON && (note.trim() ? 'add a few more words to the reason' : 'add a reason (or tap a suggestion)'),
+  ].filter(Boolean) as string[]
+  const canSign = todo.length === 0
+  const chips = [
+    ...(decision ? [REASONS[decision]] : []),
+    ...result.steps.filter((s) => s.result !== 'pass' && s.headline).map((s) => `${s.headline}.`),
+  ]
 
   async function sign() {
     if (!decision) return
@@ -67,7 +98,7 @@ export default function Decision() {
 
   const options: { value: DecisionKind; title: string; body: string }[] = [
     { value: 'approve', title: 'Approve: household qualifies', body: 'Income is within the limit for this unit.' },
-    { value: 'request_info', title: 'Request more information', body: 'The property manager gets a Box task listing what’s needed.' },
+    { value: 'request_info', title: 'Request more information', body: 'The property manager sees exactly what’s needed on their upload page.' },
     { value: 'not_eligible', title: 'Not eligible', body: 'Income is over the limit. The household can appeal.' },
   ]
 
@@ -176,6 +207,20 @@ export default function Decision() {
                 placeholder="In plain words, why you made this decision."
                 className="w-full resize-y rounded-xl border border-line-strong px-3.5 py-3 text-[15px] text-ink"
               />
+              {chips.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Suggested reasons">
+                  {chips.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setNote((n) => (n.includes(c) ? n : n.trim() ? `${n.trim()} ${c}` : c))}
+                      className="cursor-pointer rounded-full bg-evergreen-wash px-3 py-1 text-left text-[13px] text-evergreen shadow-[0_0_0_1px_var(--color-evergreen-tint)] hover:bg-evergreen-tint"
+                    >
+                      + {c}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {error && <p role="alert" className="text-sm text-fail">{error}</p>}
@@ -185,8 +230,8 @@ export default function Decision() {
                 <PenIcon />
                 {signing ? 'Signing with Box Sign…' : 'Sign decision with Box Sign'}
               </PrimaryButton>
-              <span className="text-[13px] text-muted">
-                {canSign ? 'Your name, the time and every finding are saved to Box.' : 'Choose a decision and write a short reason to sign.'}
+              <span className={`text-[13px] ${canSign ? 'text-muted' : 'text-warn'}`} aria-live="polite">
+                {canSign ? 'Your name, the time and every finding are saved to Box.' : `To sign: ${todo.join(', ')}.`}
               </span>
             </div>
           </form>

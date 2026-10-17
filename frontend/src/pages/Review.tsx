@@ -1,17 +1,25 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
+import { CheckProgress } from '../components/CheckProgress'
 import { PdfViewer, type Highlight } from '../components/PdfViewer'
 import { FlowHeader } from '../components/Shell'
-import { money, PrimaryButton, ProgressPills, RESULT, SecondaryButton, Spinner, StatusBadge } from '../components/ui'
+import { ErrorState, money, PrimaryButton, ProgressPills, RESULT, SecondaryButton, StatusBadge } from '../components/ui'
 import type { CheckResult, DocumentRef, Evidence } from '../types'
 
 export const visitedKey = (id: string) => `fairhouse.visited.${id}`
 
+/** How long the walkthrough shows each piece of proof. */
+const BEAT_MS = 4200
+
 export default function Review() {
   const { id = '' } = useParams()
+  const [params] = useSearchParams()
+  const fresh = params.get('fresh') === '1'
   const navigate = useNavigate()
   const [result, setResult] = useState<CheckResult | null>(null)
+  // Show the pipeline stages unless this check already ran in this session.
+  const [showProgress, setShowProgress] = useState(() => fresh || !api.cachedCheck(id))
   const [error, setError] = useState(false)
   const [stepIdx, setStepIdx] = useState(0)
   const [evIdx, setEvIdx] = useState(0)
@@ -19,20 +27,28 @@ export default function Review() {
   const [browse, setBrowse] = useState<{ file_id: string; page: number } | null>(null)
   const [pageCount, setPageCount] = useState(1)
   const [visited, setVisited] = useState<Set<number>>(new Set([0]))
+  const [tour, setTour] = useState<'off' | 'playing' | 'finished'>('off')
 
-  useEffect(() => {
-    api
-      .check(id)
-      .then((r) => {
-        setResult(r)
-        // Open on the first finding that needs attention, if any.
-        const first = r.steps.findIndex((s) => s.result !== 'pass')
-        const start = first >= 0 ? first : 0
-        setStepIdx(start)
-        setVisited(new Set([start]))
-      })
-      .catch(() => setError(true))
-  }, [id])
+  const runCheck = useCallback(
+    (opts: { fresh?: boolean } = {}) => {
+      setError(false)
+      setResult(null)
+      api
+        .check(id, opts)
+        .then((r) => {
+          setResult(r)
+          // Open on the first finding that needs attention, if any.
+          const first = r.steps.findIndex((s) => s.result !== 'pass')
+          const start = first >= 0 ? first : 0
+          setStepIdx(start)
+          setVisited(new Set([start]))
+        })
+        .catch(() => setError(true))
+    },
+    [id],
+  )
+
+  useEffect(() => runCheck({ fresh }), [runCheck, fresh])
 
   useEffect(() => {
     try {
@@ -55,101 +71,138 @@ export default function Review() {
       .map((e) => ({ quote: e.quote, primary: e === evidence }))
   }, [step, viewFile, viewPage, evidence])
 
-  function goTo(i: number) {
+  const goTo = useCallback((i: number) => {
     setStepIdx(i)
     setEvIdx(0)
     setBrowse(null)
     setVisited((v) => new Set(v).add(i))
+  }, [])
+
+  // Walkthrough: show each piece of proof, then move to the next finding.
+  useEffect(() => {
+    if (tour !== 'playing' || !result || !step) return
+    const t = setTimeout(() => {
+      if (evIdx < step.evidence.length - 1) {
+        setEvIdx(evIdx + 1)
+        setBrowse(null)
+      } else if (stepIdx < result.steps.length - 1) {
+        goTo(stepIdx + 1)
+      } else {
+        setTour('finished')
+      }
+    }, BEAT_MS)
+    return () => clearTimeout(t)
+  }, [tour, result, step, stepIdx, evIdx, goTo])
+
+  /** Any manual navigation takes over from the walkthrough. */
+  function manual(fn: () => void) {
+    if (tour === 'playing') setTour('off')
+    fn()
   }
 
   if (error)
     return (
       <Centered>
-        <p className="text-fail">This household couldn’t be checked. </p>
-        <Link to="/">Back to households</Link>
+        <ErrorState message="This household couldn’t be checked. Nothing was saved." onRetry={() => runCheck({ fresh: true })}>
+          <Link to="/" className="text-sm">
+            Back to households
+          </Link>
+        </ErrorState>
       </Centered>
     )
-  if (!result || !step)
+  if (showProgress)
     return (
       <Centered>
-        <Spinner label="Checking documents against Seattle MFTE rules…" />
-        <p className="mt-3 text-sm text-muted">Reading pay stubs and bank statements from Box. The demographic form is skipped.</p>
+        <CheckProgress done={!!result} onFinished={() => setShowProgress(false)} />
       </Centered>
     )
+  if (!result || !step) return <Centered>{null}</Centered>
 
   const docs: DocumentRef[] = result.documents ?? []
   const currentDoc = docs.find((d) => d.file_id === view?.file_id)
   const isLast = stepIdx === result.steps.length - 1
   const r = RESULT[step.result]
+  const beats = result.steps.reduce((n, s) => n + Math.max(1, s.evidence.length), 0)
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col lg:h-screen lg:overflow-hidden">
       <FlowHeader
         crumbs={[{ label: 'Households', to: '/' }, { label: result.building.replace(' Apartments', ''), to: '/' }, { label: `Unit ${result.unit}` }]}
         right={<ProgressPills current={1} />}
       />
-      <main className="mx-auto max-w-[1376px] px-8 pt-2 pb-10">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge status={result.status} />
-              <span className="text-[13px] text-muted">AI suggested · you decide</span>
-            </div>
-            <h1 className="mt-2 font-serif text-[34px] leading-tight font-semibold">{result.name}</h1>
-          </div>
-          <p className="text-[15px] text-muted">
-            <strong className="text-xl text-ink">{money(result.projected_annual_income)}</strong> projected ·{' '}
-            <strong className="text-xl text-ink">{money(result.income_limit)}</strong> limit ({result.unit_ami_pct}% AMI, {result.household_size}{' '}
-            {result.household_size === 1 ? 'person' : 'people'})
-          </p>
+      <div className="mx-auto flex w-full max-w-[1376px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-8">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="font-serif text-[28px] leading-tight font-semibold">{result.name}</h1>
+          <StatusBadge status={result.status} />
+          <span className="text-[13px] text-muted">AI suggested · you decide</span>
         </div>
+        <p className="text-[15px] text-muted">
+          <strong className="text-lg text-ink">{money(result.projected_annual_income)}</strong> projected ·{' '}
+          <strong className="text-lg text-ink">{money(result.income_limit)}</strong> limit ({result.unit_ami_pct}% AMI, {result.household_size}{' '}
+          {result.household_size === 1 ? 'person' : 'people'})
+        </p>
+      </div>
 
-        <div className="mt-6 flex flex-wrap items-start gap-7">
-          <section aria-label="Source document" className="min-w-0 flex-[999_1_560px]">
-            <div className="mb-2.5 flex flex-wrap items-center gap-1.5 text-[13px]">
-              {docs.map((d) => (
-                <button
-                  key={d.file_id}
-                  onClick={() => setBrowse({ file_id: d.file_id, page: d.file_id === view?.file_id ? view.page : 1 })}
-                  aria-pressed={d.file_id === view?.file_id}
-                  className={`cursor-pointer rounded-full px-3 py-1.5 ${
-                    d.file_id === view?.file_id ? 'bg-evergreen font-medium text-white' : 'bg-white text-ink hover:bg-evergreen-wash'
-                  }`}
-                >
-                  {d.label}
-                </button>
-              ))}
-              <span className="ml-auto flex items-center gap-2 text-muted">
-                {view && pageCount > 1 && (
-                  <>
-                    <button
-                      aria-label="Previous page"
-                      disabled={view.page <= 1}
-                      onClick={() => setBrowse({ file_id: view.file_id, page: view.page - 1 })}
-                      className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-white disabled:opacity-40"
-                    >
-                      ‹
-                    </button>
-                    <button
-                      aria-label="Next page"
-                      disabled={view.page >= pageCount}
-                      onClick={() => setBrowse({ file_id: view.file_id, page: view.page + 1 })}
-                      className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-white disabled:opacity-40"
-                    >
-                      ›
-                    </button>
-                  </>
-                )}
-                Page {view?.page ?? 1} of {pageCount} · from Box
-              </span>
-            </div>
-            {view && (
-              <PdfViewer url={api.fileUrl(view.file_id)} page={view.page} highlights={highlights} onPageCount={setPageCount} />
-            )}
-            <p className="mt-2 text-xs text-muted">{currentDoc?.file_name}</p>
-          </section>
+      <main className="mx-auto flex w-full max-w-[1376px] flex-col gap-6 px-8 pt-3 pb-5 lg:min-h-0 lg:flex-1 lg:flex-row">
+        <section aria-label="Source document" className="flex min-w-0 flex-1 flex-col lg:min-h-0">
+          <div className="mb-2.5 flex flex-wrap items-center gap-1.5 text-[13px]">
+            {docs.map((d) => (
+              <button
+                key={d.file_id}
+                onClick={() => manual(() => setBrowse({ file_id: d.file_id, page: d.file_id === view?.file_id ? view.page : 1 }))}
+                aria-pressed={d.file_id === view?.file_id}
+                className={`cursor-pointer rounded-full px-3 py-1.5 ${
+                  d.file_id === view?.file_id ? 'bg-evergreen font-medium text-white' : 'bg-white text-ink hover:bg-evergreen-wash'
+                }`}
+              >
+                {d.label}
+              </button>
+            ))}
+            <span className="ml-auto flex items-center gap-2 text-muted">
+              {view && pageCount > 1 && (
+                <>
+                  <button
+                    aria-label="Previous page"
+                    disabled={view.page <= 1}
+                    onClick={() => manual(() => setBrowse({ file_id: view.file_id, page: view.page - 1 }))}
+                    className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-white disabled:opacity-40"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    aria-label="Next page"
+                    disabled={view.page >= pageCount}
+                    onClick={() => manual(() => setBrowse({ file_id: view.file_id, page: view.page + 1 }))}
+                    className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-white disabled:opacity-40"
+                  >
+                    ›
+                  </button>
+                </>
+              )}
+              Page {view?.page ?? 1} of {pageCount} · from Box
+            </span>
+          </div>
+          <div className="rounded-xl bg-mist-deep/60 p-3 lg:min-h-0 lg:flex-1 lg:overflow-auto">
+            {view && <PdfViewer url={api.fileUrl(view.file_id)} page={view.page} highlights={highlights} onPageCount={setPageCount} />}
+          </div>
+          <p className="mt-1.5 text-xs text-muted">{currentDoc?.file_name}</p>
+        </section>
 
-          <aside aria-label="Findings" className="flex max-w-[400px] flex-[1_1_340px] flex-col gap-3.5">
+        <aside aria-label="Findings" className="flex w-full flex-col gap-3 lg:min-h-0 lg:w-[400px] lg:flex-none">
+          <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:overflow-auto lg:pr-1">
+            <Walkthrough
+              state={tour}
+              seconds={Math.round((beats * BEAT_MS) / 1000)}
+              beatKey={`${stepIdx}-${evIdx}`}
+              position={`Finding ${stepIdx + 1} of ${result.steps.length}`}
+              onStart={() => {
+                goTo(0)
+                setTour('playing')
+              }}
+              onStop={() => setTour('off')}
+              onDecide={() => navigate(`/households/${id}/decision`)}
+            />
+
             <ol aria-label="All checks" className="m-0 flex list-none flex-col gap-0.5 rounded-2xl bg-white p-1.5 text-sm shadow-[0_0_0_1px_var(--color-line)]">
               {result.steps.map((s, i) => {
                 const sr = RESULT[s.result]
@@ -157,9 +210,9 @@ export default function Review() {
                 return (
                   <li key={s.id}>
                     <button
-                      onClick={() => goTo(i)}
+                      onClick={() => manual(() => goTo(i))}
                       aria-current={active ? 'step' : undefined}
-                      className={`flex w-full cursor-pointer items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left ${
+                      className={`flex w-full cursor-pointer items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-left ${
                         active ? 'bg-evergreen-tint font-semibold' : 'hover:bg-mist'
                       }`}
                     >
@@ -167,17 +220,14 @@ export default function Review() {
                         {sr.mark}
                       </span>
                       {s.title}
-                      <span className={`ml-auto text-xs font-medium ${sr.text}`}>
-                        {s.result_label ?? sr.label}
-                        {active ? ' · viewing' : visited.has(i) ? '' : ''}
-                      </span>
+                      <span className={`ml-auto text-xs font-medium ${sr.text}`}>{s.result_label ?? sr.label}</span>
                     </button>
                   </li>
                 )
               })}
             </ol>
 
-            <div className="rounded-2xl bg-white p-[22px] shadow-[0_0_0_1.5px_var(--color-evergreen)]">
+            <div className="rounded-2xl bg-white p-5 shadow-[0_0_0_1.5px_var(--color-evergreen)]">
               <div className={`text-[13px] font-semibold ${r.text}`}>
                 Finding {stepIdx + 1} of {result.steps.length} · {step.title} · {step.result_label ?? r.label}
               </div>
@@ -189,14 +239,14 @@ export default function Review() {
                 return (
                   <button
                     key={`${e.file_id}-${e.page}-${i}`}
-                    onClick={() => {
-                      setEvIdx(i)
-                      setBrowse(null)
-                    }}
+                    onClick={() =>
+                      manual(() => {
+                        setEvIdx(i)
+                        setBrowse(null)
+                      })
+                    }
                     aria-pressed={selected}
-                    className={`mt-1 flex w-full cursor-pointer gap-3 rounded-[10px] px-3 py-[11px] text-left ${
-                      selected ? 'bg-marker-wash' : 'hover:bg-mist'
-                    }`}
+                    className={`mt-1 flex w-full cursor-pointer gap-3 rounded-[10px] px-3 py-2.5 text-left ${selected ? 'bg-marker-wash' : 'hover:bg-mist'}`}
                   >
                     <span
                       className={`grid h-[22px] w-[22px] flex-none place-items-center rounded-full text-xs font-semibold ${
@@ -215,41 +265,100 @@ export default function Review() {
                   </button>
                 )
               })}
-              {step.result !== 'pass' && (
-                <p className="mt-3 text-sm text-muted">Only a person can decide what this means for the household.</p>
-              )}
+              {step.result !== 'pass' && <p className="mt-3 text-sm text-muted">Only a person can decide what this means for the household.</p>}
             </div>
 
-            <div className="flex gap-2.5">
-              <SecondaryButton disabled={stepIdx === 0} onClick={() => goTo(stepIdx - 1)}>
-                Back
-              </SecondaryButton>
-              {isLast ? (
-                <PrimaryButton className="flex-1" onClick={() => navigate(`/households/${id}/decision`)}>
-                  Continue to decision →
-                </PrimaryButton>
-              ) : (
-                <PrimaryButton className="flex-1" onClick={() => goTo(stepIdx + 1)}>
-                  Next finding →
-                </PrimaryButton>
-              )}
-            </div>
-            {!isLast && (
-              <Link to={`/households/${id}/decision`} className="text-center text-sm text-muted">
-                Skip to decision
-              </Link>
-            )}
             <p className="text-[13px] text-muted">
-              Excluded: {result.excluded_documents.map((d) => d.file_name.replace(/_/g, ' ').replace('.pdf', '')).join(', ')}, never
-              used for decisions. Rules: {result.rules_version}.
+              Excluded: {result.excluded_documents.map((d) => d.file_name.replace(/_/g, ' ').replace('.pdf', '')).join(', ')}, never used for
+              decisions. Rules: {result.rules_version}.
             </p>
-          </aside>
-        </div>
+          </div>
+
+          <div className="flex flex-none gap-2.5">
+            <SecondaryButton disabled={stepIdx === 0} onClick={() => manual(() => goTo(stepIdx - 1))}>
+              Back
+            </SecondaryButton>
+            {isLast ? (
+              <PrimaryButton className="flex-1" onClick={() => navigate(`/households/${id}/decision`)}>
+                Continue to decision →
+              </PrimaryButton>
+            ) : (
+              <PrimaryButton className="flex-1" onClick={() => manual(() => goTo(stepIdx + 1))}>
+                Next finding →
+              </PrimaryButton>
+            )}
+          </div>
+          {!isLast && (
+            <Link to={`/households/${id}/decision`} className="flex-none text-center text-sm text-muted">
+              Skip to decision
+            </Link>
+          )}
+        </aside>
       </main>
     </div>
   )
 }
 
+function Walkthrough({
+  state,
+  seconds,
+  beatKey,
+  position,
+  onStart,
+  onStop,
+  onDecide,
+}: {
+  state: 'off' | 'playing' | 'finished'
+  seconds: number
+  beatKey: string
+  position: string
+  onStart: () => void
+  onStop: () => void
+  onDecide: () => void
+}) {
+  if (state === 'playing')
+    return (
+      <div className="rounded-2xl bg-evergreen px-4 py-3 text-white" aria-live="polite">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-semibold">Walkthrough · {position}</span>
+          <button onClick={onStop} className="ml-auto cursor-pointer rounded-full bg-white/15 px-3 py-1 text-[13px] font-semibold hover:bg-white/25">
+            Stop
+          </button>
+        </div>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/20">
+          <div key={beatKey} className="animate-fill h-full rounded-full bg-marker" style={{ animationDuration: `${BEAT_MS}ms` }} />
+        </div>
+      </div>
+    )
+  if (state === 'finished')
+    return (
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-evergreen-tint px-4 py-3">
+        <span className="text-sm font-semibold text-evergreen">You’ve seen every finding and its proof.</span>
+        <button onClick={onDecide} className="ml-auto cursor-pointer rounded-full bg-evergreen px-3.5 py-1.5 text-[13px] font-semibold text-white">
+          Make a decision →
+        </button>
+      </div>
+    )
+  return (
+    <button
+      onClick={onStart}
+      className="flex cursor-pointer items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left shadow-[0_0_0_1px_var(--color-line)] hover:bg-evergreen-wash"
+    >
+      <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-evergreen text-white" aria-hidden="true">
+        ▶
+      </span>
+      <span>
+        <span className="block font-semibold">Walk me through</span>
+        <span className="text-[13px] text-muted">Plays every finding with its proof highlighted · about {seconds}s</span>
+      </span>
+    </button>
+  )
+}
+
 function Centered({ children }: { children: React.ReactNode }) {
-  return <div className="grid min-h-screen place-items-center px-8 text-center"><div>{children}</div></div>
+  return (
+    <div className="grid min-h-screen place-items-center px-8 text-center">
+      <div>{children}</div>
+    </div>
+  )
 }

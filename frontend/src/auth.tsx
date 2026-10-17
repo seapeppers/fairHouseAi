@@ -27,8 +27,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh])
 
   const signOut = useCallback(() => {
-    api.signOut()
     setMe(null)
+    void api.signOut()
   }, [])
 
   return <AuthContext.Provider value={{ me, loading, refresh, signOut }}>{children}</AuthContext.Provider>
