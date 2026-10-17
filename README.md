@@ -32,3 +32,18 @@ docs/pitch.md      problem / solution / demo write-up
 | `C_needs_review` | Needs review | Stubs say $20/hr but payroll deposits match $28/hr; undeclared recurring $1,500/month; over the limit |
 
 Regenerate: `pip install -r scripts/requirements.txt && python scripts/generate_households.py`
+
+## Running the backend
+```
+cp .env.example .env            # real values are shared privately
+cd backend
+uv venv && uv pip install -r requirements.txt   # or: python -m venv .venv && pip install -r requirements.txt
+.venv/bin/uvicorn app.main:app --reload --port 8000
+```
+Sign in at http://localhost:8000/auth/box/login (or through the frontend). `GET /me` returns your name and role:
+`analyst` if your Box account can open the "Seattle Office of Housing" folder, `property_manager` if it can only open Juniper Court.
+
+Box folders, files and the `fairhouseReview` metadata template are created by `scripts/box_setup.py` (safe to re-run).
+
+Fallback if Box sign-in breaks: set `AUTH_MODE=demo`, have the analyst open `/auth/box/login?service=1` once,
+then `/auth/demo/login?role=analyst` or `?role=property_manager` signs in over that one shared connection.
