@@ -1,0 +1,133 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-10-17T17:33:52.600Z",
+  "trigger": {
+    "eventId": "f6c32748-f546-4b6f-8d45-4727eece57c8",
+    "fileId": "2533210072209",
+    "fileName": "bank_statement_2026-07.pdf",
+    "parentFolderId": "428480670787"
+  },
+  "extracts": [
+    {
+      "file_id": "2533210072209",
+      "file_name": "bank_statement_2026-07.pdf",
+      "extract": {
+        "document_type": "Bank Statement",
+        "applicant_name": "Maria Lopez",
+        "dates": "Statement period: July 1, 2026 - July 31, 2026",
+        "income_evidence": "Three payroll deposits from EVERGREEN ROASTERS LLC, each for $1,581.12, dated 07/03/2026, 07/17/2026, and 07/31/2026.",
+        "bank_deposits": "07/03/2026: $1,581.12 (EVERGREEN ROASTERS LLC PAYROLL DIRECT DEP); 07/14/2026: $42.10 (ONLINE RETAILER REFUND); 07/17/2026: $1,581.12 (EVERGREEN ROASTERS LLC PAYROLL DIRECT DEP); 07/31/2026: $1,581.12 (EVERGREEN ROASTERS LLC PAYROLL DIRECT DEP).",
+        "missing_or_unclear": "Withdrawals and card purchases are omitted from this statement."
+      }
+    },
+    {
+      "file_id": "2533086853808",
+      "file_name": "fairhouse-e2e-1792252397270.txt",
+      "extract": {
+        "document_type": "Webhook integration test document",
+        "missing_or_unclear": "The document contains no applicant, income, or financial information; it is a test string."
+      }
+    },
+    {
+      "file_id": "2533087675090",
+      "file_name": "fairhouse-e2e-1792252616042.txt",
+      "extract": {
+        "document_type": "Webhook integration test document",
+        "missing_or_unclear": "The document is a test file and contains no applicant, income, or financial information."
+      }
+    },
+    {
+      "file_id": "2533153648235",
+      "file_name": "fairhouse-e2e-1792255614710.txt",
+      "extract": {
+        "document_type": "Webhook E2E fixture",
+        "missing_or_unclear": "The document is a placeholder/fixture and contains no relevant applicant or financial information."
+      }
+    },
+    {
+      "file_id": "2533175685020",
+      "file_name": "fairhouse-e2e-1792256645975.txt",
+      "extract": {
+        "document_type": "FairHouse webhook E2E fixture",
+        "missing_or_unclear": "The document is a test fixture and contains no relevant applicant or financial information."
+      }
+    },
+    {
+      "file_id": "2533185115058",
+      "file_name": "fairhouse-e2e-1792257031260.txt",
+      "extract": {
+        "document_type": "Webhook E2E fixture",
+        "missing_or_unclear": "The document is a placeholder/fixture and contains no applicant or financial information."
+      }
+    },
+    {
+      "file_id": "2533195922290",
+      "file_name": "fairhouse-e2e-1792257541064.txt",
+      "extract": {
+        "document_type": "Webhook integration test",
+        "missing_or_unclear": "The document is a webhook integration test and contains no financial or personal information."
+      }
+    },
+    {
+      "file_id": "2533200827805",
+      "file_name": "fairhouse-e2e-1792257748877.txt",
+      "extract": {
+        "document_type": "Webhook integration test document",
+        "missing_or_unclear": "The document is a test string and contains no relevant financial or applicant information."
+      }
+    },
+    {
+      "file_id": "2533190934878",
+      "file_name": "fairhouse-signature-diagnostic-1792257273788.txt",
+      "extract": {
+        "document_type": "Diagnostic log",
+        "missing_or_unclear": "The document contains no information other than a diagnostic identifier."
+      }
+    }
+  ],
+  "manual_review": {
+    "manual_review_required": true,
+    "items": [
+      {
+        "file_id": "2533086853808",
+        "reason": "The document contains no applicant, income, or financial information; it is a test string.",
+        "severity": "high"
+      },
+      {
+        "file_id": "2533087675090",
+        "reason": "The document is a test file and contains no applicant, income, or financial information.",
+        "severity": "high"
+      },
+      {
+        "file_id": "2533153648235",
+        "reason": "The document is a placeholder/fixture and contains no relevant applicant or financial information.",
+        "severity": "high"
+      },
+      {
+        "file_id": "2533175685020",
+        "reason": "The document is a test fixture and contains no relevant applicant or financial information.",
+        "severity": "high"
+      },
+      {
+        "file_id": "2533185115058",
+        "reason": "The document is a placeholder/fixture and contains no applicant or financial information.",
+        "severity": "high"
+      },
+      {
+        "file_id": "2533195922290",
+        "reason": "The document is a webhook integration test and contains no financial or personal information.",
+        "severity": "high"
+      },
+      {
+        "file_id": "2533200827805",
+        "reason": "The document is a test string and contains no relevant financial or applicant information.",
+        "severity": "high"
+      },
+      {
+        "file_id": "2533190934878",
+        "reason": "The document contains no information other than a diagnostic identifier.",
+        "severity": "high"
+      }
+    ]
+  }
+}
