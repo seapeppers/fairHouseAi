@@ -14,7 +14,7 @@ export function Logo({ size = 28 }: { size?: number }) {
         <path d="M8 15.5 15 9l7 6.5V22H8z" stroke="#F3F4F0" strokeWidth="1.8" strokeLinejoin="round" />
         <path d="m11.8 17.6 2.3 2.2 4.3-4.3" stroke="#F3E39A" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <span className="font-serif text-[19px] font-semibold">FairHouse AI</span>
+      <span className="font-serif text-[19px] font-semibold">FairHouseAI</span>
     </Link>
   )
 }

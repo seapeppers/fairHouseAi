@@ -1,4 +1,4 @@
-# FairHouse AI frontend
+# FairHouseAI frontend
 
 React + Vite + TypeScript + Tailwind. PDF viewing and highlighting use react-pdf (PDF.js).
 

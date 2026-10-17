@@ -41,7 +41,7 @@ export default function SignIn() {
               <path d="M8 15.5 15 9l7 6.5V22H8z" stroke="#F3F4F0" strokeWidth="1.8" strokeLinejoin="round" />
               <path d="m11.8 17.6 2.3 2.2 4.3-4.3" stroke="#F3E39A" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <span className="font-serif text-[26px] font-semibold">FairHouse AI</span>
+            <span className="font-serif text-[26px] font-semibold">FairHouseAI</span>
           </div>
           <h1 className="mt-9 font-serif text-[46px] leading-[1.12] font-semibold tracking-tight">
             Low-income housing reviews, made <mark className="rounded-md bg-marker px-1.5 text-ink">simple</mark>.
@@ -76,7 +76,7 @@ export default function SignIn() {
           </button>
           <ul className="mt-6 flex list-none flex-col gap-2 border-t border-mist-deep p-0 pt-[18px] text-sm text-muted">
             <li>· What you can see follows your Box folder permissions.</li>
-            <li>· Files stay in Box. FairHouse AI doesn’t keep copies.</li>
+            <li>· Files stay in Box. FairHouseAI doesn’t keep copies.</li>
             <li>· Every decision is signed and saved to Box.</li>
           </ul>
           {USE_MOCK && (
