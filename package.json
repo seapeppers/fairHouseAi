@@ -1,0 +1,19 @@
+{
+  "name": "fairhouse-ai-webhook",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test test/unit/**/*.test.js",
+    "test:e2e": "node --test test/e2e/**/*.test.js",
+    "package": "rm -rf dist && npm ci --omit=dev && node scripts/package.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.750.0",
+    "archiver": "^7.0.1",
+    "box-node-sdk": "^4.0.0"
+  }
+}
