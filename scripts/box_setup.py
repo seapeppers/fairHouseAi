@@ -130,7 +130,11 @@ def main():
     ids = {"root": box.folder("0", ROOT_FOLDER)}
     ids["rules"] = box.folder(ids["root"], "Rules")
     ids["reviews"] = box.folder(ids["root"], "Reviews")
+    ids["ai_reviews"] = box.folder(ids["reviews"], "AI reviews")
+    ids["final_decisions"] = box.folder(ids["reviews"], "Final decisions")
     ids["building"] = box.folder(ids["root"], BUILDING)
+    # Scratch folder for the webhook's end-to-end test; kept apart from real households.
+    ids["webhook_test"] = box.folder(ids["root"], "_webhook-test")
 
     for name in RULE_FILES:
         box.upload(ids["rules"], DATA / "rules" / name)
@@ -152,6 +156,9 @@ def main():
     print(f"BOX_ROOT_FOLDER_ID={ids['root']}")
     print(f"BOX_RULES_FOLDER_ID={ids['rules']}")
     print(f"BOX_REVIEWS_FOLDER_ID={ids['reviews']}")
+    print(f"BOX_AI_REVIEWS_FOLDER_ID={ids['ai_reviews']}")
+    print(f"BOX_FINAL_DECISIONS_FOLDER_ID={ids['final_decisions']}")
+    print(f"BOX_WEBHOOK_TEST_FOLDER_ID={ids['webhook_test']}")
     print(f"BOX_BUILDING_FOLDER_ID={ids['building']}")
 
 
