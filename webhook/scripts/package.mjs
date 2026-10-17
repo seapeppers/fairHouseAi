@@ -8,7 +8,7 @@ archive.pipe(output);
 archive.file("index.js");
 archive.file("package.json");
 archive.directory("lib", "lib");
-archive.directory("data/rules", "data/rules");
+archive.directory("../data/rules", "data/rules");
 archive.directory("node_modules", "node_modules");
 await archive.finalize();
 await new Promise((resolve, reject) => {

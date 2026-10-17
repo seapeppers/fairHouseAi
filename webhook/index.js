@@ -1,22 +1,27 @@
 import crypto from "node:crypto";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
-import { BoxClient, BoxCcgAuth, CcgConfig } from "box-node-sdk/sdk-gen";
+import { BoxClient, BoxCcgAuth, BoxDeveloperTokenAuth, CcgConfig } from "box-node-sdk/sdk-gen";
 import {
   buildExtractionFields,
+  extractionAgent,
   isEligibleDocument,
+  isResultFile,
   normalizeExtractResponse,
   parseWebhookEvent,
   resultFileName,
-  submissionIdFromFileName,
 } from "./lib/processing.js";
 import { calculateEligibility } from "./lib/eligibility.js";
 
+// The Lambda zip carries data/rules next to index.js; in the repo it is one level up.
+const rulesDir = new URL(existsSync(new URL("./data/rules", import.meta.url)) ? "./data/rules/" : "../data/rules/", import.meta.url);
 const [rulesText, incomeLimits] = await Promise.all([
-  readFile(new URL("./data/rules/rules.md", import.meta.url), "utf8"),
-  readFile(new URL("./data/rules/income_limits_mfte_p7_2026.json", import.meta.url), "utf8").then(JSON.parse),
+  readFile(new URL("rules.md", rulesDir), "utf8"),
+  readFile(new URL("income_limits_mfte_p7_2026.json", rulesDir), "utf8").then(JSON.parse),
 ]);
+const MODEL_ID = process.env.BEDROCK_MODEL_ID || "us.anthropic.claude-sonnet-4-5-20250929-v1:0";
 
 const required = (name) => {
   const value = process.env[name];
@@ -36,10 +41,15 @@ function errorDiagnostic(error) {
 }
 
 function createBoxClient() {
+  // Local runs can use a 60-minute developer token instead of the CCG app.
+  if (process.env.BOX_DEVELOPER_TOKEN) {
+    return new BoxClient({ auth: new BoxDeveloperTokenAuth({ token: process.env.BOX_DEVELOPER_TOKEN }) });
+  }
+  // BOX_CCG_* so they never clash with the sign-in app's BOX_CLIENT_ID in the shared .env.
   const auth = new BoxCcgAuth({
     config: new CcgConfig({
-      clientId: required("BOX_CLIENT_ID"),
-      clientSecret: required("BOX_CLIENT_SECRET"),
+      clientId: required("BOX_CCG_CLIENT_ID"),
+      clientSecret: required("BOX_CCG_CLIENT_SECRET"),
       enterpriseId: required("BOX_ENTERPRISE_ID"),
     }),
   });
@@ -91,22 +101,28 @@ function verifySignature(headers, body) {
   return matches;
 }
 
-async function classify(extractions, bedrock) {
+// Judgment calls only: the code has already done the math and the rule checks.
+async function classify(extractions, report, bedrock) {
+  const { facts, ...checked } = report;
   const prompt = [
-    "You are FairHouse AI's document classifier.",
-    "Use the following Seattle MFTE rules as context. Extract facts only; do not calculate eligibility or invent facts.",
+    "You are FairHouse AI's reviewer for Seattle MFTE income files. Rules:",
     rulesText,
-    "Return JSON only with this exact shape: {\"items\":[{\"file_id\":string,\"reason\":string,\"severity\":\"low\"|\"medium\"|\"high\"}]}",
+    "Plain code has already calculated income and run the rule checks; its result is below. Do not redo the math or repeat its findings.",
+    "List only other problems a compliance analyst must look at: contradictions between documents, signs a document was altered, or income that is not accounted for. Ordinary items (refunds, transfers between own accounts, interest, omitted withdrawals) are not problems.",
+    "Return JSON only with this exact shape: {\"items\":[{\"file_id\":string,\"reason\":string,\"severity\":\"low\"|\"medium\"|\"high\"}]}. Return {\"items\":[]} when there is nothing.",
+    `Code result: ${JSON.stringify(checked)}`,
     `Extracts: ${JSON.stringify(extractions)}`,
   ].join("\n");
   const response = await bedrock.send(new ConverseCommand({
-    modelId: process.env.BEDROCK_MODEL_ID || "amazon.nova-2-lite-v1",
+    modelId: MODEL_ID,
     messages: [{ role: "user", content: [{ text: prompt }] }],
     inferenceConfig: { maxTokens: 1000, temperature: 0 },
   }));
   const text = response.output?.message?.content?.find((part) => part.text)?.text;
   if (!text) throw new Error("Bedrock returned no decision text");
-  return JSON.parse(text.replace(/^```json\s*|\s*```$/g, ""));
+  // Models sometimes wrap the JSON in prose or a code fence; take the outermost object.
+  const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
+  return JSON.parse(json);
 }
 
 async function listFolderItems(box, folderId) {
@@ -129,20 +145,9 @@ async function writeResult(box, folderId, name, content, existing) {
   return uploaded.entries?.[0]?.id;
 }
 
-async function processWebhook(event, { box = createBoxClient(), bedrock = new BedrockRuntimeClient({}) } = {}) {
-  const uploaded = parseWebhookEvent(event);
-  const submissionId = submissionIdFromFileName(uploaded.fileName);
-  if (!submissionId) {
-    console.info("FairHouse webhook ignored file without submission prefix", JSON.stringify({ fileId: uploaded.fileId, fileName: uploaded.fileName }));
-    return { ignored: true, reason: "Missing five-character submission prefix" };
-  }
-  console.info("FairHouse webhook processing started", JSON.stringify({
-    eventId: uploaded.eventId,
-    fileId: uploaded.fileId,
-    parentFolderId: uploaded.parentFolderId,
-  }));
-  const folderItems = await listFolderItems(box, uploaded.parentFolderId);
-  const files = folderItems.filter((file) => submissionIdFromFileName(file.name) === submissionId && isEligibleDocument(file));
+/** Check one household folder and write <folder id>_check_result.json to the results folder. */
+async function processHousehold(householdFolderId, { box = createBoxClient(), bedrock = new BedrockRuntimeClient({}) } = {}) {
+  const files = (await listFolderItems(box, householdFolderId)).filter(isEligibleDocument);
   const extractions = [];
   for (const file of files) {
     let result;
@@ -150,6 +155,7 @@ async function processWebhook(event, { box = createBoxClient(), bedrock = new Be
       result = await box.ai.createAiExtractStructured({
         items: [{ id: file.id, type: "file" }],
         fields: buildExtractionFields(file.name),
+        aiAgent: extractionAgent(),
       });
     } catch (error) {
       console.error("FairHouse Box extraction failed", JSON.stringify({
@@ -161,23 +167,25 @@ async function processWebhook(event, { box = createBoxClient(), bedrock = new Be
     }
     extractions.push({ file_id: file.id, file_name: file.name, extract: normalizeExtractResponse(result) });
   }
-  let classifier;
+  const report = calculateEligibility(householdFolderId, extractions, incomeLimits);
   try {
-    classifier = await classify(extractions, bedrock);
+    const classifier = await classify(extractions, report, bedrock);
+    const serious = (classifier.items || []).filter((item) => item.severity !== "low");
+    if (serious.length && report.status === "QUALIFIES") report.status = "NEEDS_REVIEW";
+    report.reasons.push(...serious.map((item) => item.reason));
   } catch (error) {
+    // The math and rule checks stand; a person looks at what the model could not.
     console.error("FairHouse Bedrock classification failed", JSON.stringify({
-      fileId: uploaded.fileId,
-      extractionCount: extractions.length,
-      modelId: process.env.BEDROCK_MODEL_ID || "amazon.nova-2-lite-v1",
+      householdFolderId,
+      modelId: MODEL_ID,
       error: errorDiagnostic(error),
     }));
-    throw error;
+    if (report.status === "QUALIFIES") report.status = "NEEDS_REVIEW";
+    report.reasons.push("The AI review step did not run; check the documents by hand.");
   }
-  const report = calculateEligibility(submissionId, extractions, incomeLimits);
-  if (classifier.items?.length && report.status === "QUALIFIES") report.status = "NEEDS_REVIEW";
-  report.reasons.push(...(classifier.items || []).map((item) => item.reason));
-  const destinationFolderId = process.env.BOX_RESULTS_FOLDER_ID || uploaded.parentFolderId;
-  const resultName = resultFileName(submissionId);
+  report.generated_at = new Date().toISOString();
+  const destinationFolderId = process.env.BOX_RESULTS_FOLDER_ID || householdFolderId;
+  const resultName = resultFileName(householdFolderId);
   const destinationItems = await listFolderItems(box, destinationFolderId);
   const existing = destinationItems.find((item) => item.type === "file" && item.name === resultName);
   let reportFileId;
@@ -185,13 +193,28 @@ async function processWebhook(event, { box = createBoxClient(), bedrock = new Be
     reportFileId = await writeResult(box, destinationFolderId, resultName, report, existing);
   } catch (error) {
     console.error("FairHouse report upload failed", JSON.stringify({
-      fileId: uploaded.fileId,
+      householdFolderId,
       destinationFolderId,
       error: errorDiagnostic(error),
     }));
     throw error;
   }
-  return { reportFileId, submissionId, status: report.status, updated: Boolean(existing) };
+  return { reportFileId, householdFolderId, status: report.status, updated: Boolean(existing), report };
+}
+
+async function processWebhook(event, deps = {}) {
+  const uploaded = parseWebhookEvent(event);
+  // Our own result files must never trigger another run, or the webhook would loop.
+  if (isResultFile(uploaded.fileName) || uploaded.parentFolderId === process.env.BOX_RESULTS_FOLDER_ID) {
+    return { ignored: true, reason: "FairHouse result file" };
+  }
+  console.info("FairHouse webhook processing started", JSON.stringify({
+    eventId: uploaded.eventId,
+    fileId: uploaded.fileId,
+    parentFolderId: uploaded.parentFolderId,
+  }));
+  const { report, ...result } = await processHousehold(uploaded.parentFolderId, deps);
+  return result;
 }
 
 export const handler = async (event) => {
@@ -219,4 +242,4 @@ export const handler = async (event) => {
   }
 };
 
-export { createBoxClient, processWebhook, verifySignature };
+export { createBoxClient, processHousehold, processWebhook, verifySignature };
