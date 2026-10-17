@@ -79,7 +79,7 @@ test("deposits that don't match the stubs, and undeclared recurring income, need
   assert.ok(result.reasons.some((r) => /match \$28\.00\/hr/.test(r)));
   assert.ok(result.reasons.some((r) => /not declared/.test(r)));
   assert.ok(result.reasons.some((r) => /Deposit Explanation Form/.test(r)));
-  assert.equal(result.flags.length, 4);
+  assert.equal(result.flags.length, 3); // mismatch, undeclared recurring, no explanation form
 });
 
 test("updates the household's one result file and ignores its own uploads", async () => {
