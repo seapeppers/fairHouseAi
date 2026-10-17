@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+/* Evergreen Proof design tokens. See notes/design-vision.md in the private workspace. */
+@theme {
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Source Serif 4", Georgia, serif;
+
+  --color-mist: #f3f4f0;
+  --color-mist-deep: #e7e9e3;
+  --color-line: #dcdfd6;
+  --color-line-strong: #b9c0b4;
+  --color-ink: #18241f;
+  --color-ink-soft: #2a332e;
+  --color-muted: #4e5b54;
+  --color-faint: #6b746f;
+
+  --color-evergreen: #1e4a38;
+  --color-evergreen-dark: #123226;
+  --color-evergreen-tint: #e4ece6;
+  --color-evergreen-wash: #f4f8f5;
+
+  --color-marker: #f3e39a;
+  --color-marker-wash: #fbf7e1;
+
+  --color-pass: #1e6b3a;
+  --color-pass-tint: #e2efe5;
+  --color-warn: #8a5300;
+  --color-warn-tint: #fbf1df;
+  --color-fail: #a12b2b;
+  --color-fail-tint: #f8e4e2;
+  --color-review: #3b3790;
+  --color-review-tint: #ecebfa;
+  --color-review-soft: #8b86d6;
+}
+
+@layer base {
+  html,
+  body {
+    background: var(--color-mist);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+  }
+  a {
+    color: var(--color-evergreen);
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-evergreen);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+/* Highlight for quoted evidence inside the PDF text layer. Translucent so the
+   printed words on the canvas underneath stay readable. */
+.react-pdf__Page__textContent mark.proof {
+  background: rgba(240, 210, 70, 0.4);
+  color: transparent;
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px rgba(30, 74, 56, 0.55);
+}
+.react-pdf__Page__textContent mark.proof.secondary {
+  background: rgba(30, 74, 56, 0.1);
+  box-shadow: 0 0 0 1px rgba(30, 74, 56, 0.35);
+}
