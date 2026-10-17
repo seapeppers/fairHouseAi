@@ -199,6 +199,7 @@ export function calculateEligibility(householdFolderId, extractions, incomeLimit
     status,
     projected_annual_income: projected,
     reasons: [...missing, ...flags, ...reasons],
+    flags, // the reasons a person must look at; the review screen warns on these
     facts,
   };
 }

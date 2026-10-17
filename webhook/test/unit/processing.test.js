@@ -49,6 +49,7 @@ test("qualifies when wages match deposits and are under the limit", () => {
   const result = calculateEligibility("hh", household({ extra: [[{ date: "07/14/2026", description: "ONLINE RETAILER REFUND", amount: "$42.10" }]] }), incomeLimits);
   assert.equal(result.status, "QUALIFIES");
   assert.equal(result.projected_annual_income, 49920);
+  assert.deepEqual(result.flags, []);
   assert.equal(result.income_limit, 69060);
   assert.ok(result.facts.some((f) => f.value === "$1,581.12" && f.context === "07/03/2026"));
   assert.ok(result.facts.some((f) => f.label === "Hourly rate (latest stub)" && f.page === 3));
@@ -78,6 +79,7 @@ test("deposits that don't match the stubs, and undeclared recurring income, need
   assert.ok(result.reasons.some((r) => /match \$28\.00\/hr/.test(r)));
   assert.ok(result.reasons.some((r) => /not declared/.test(r)));
   assert.ok(result.reasons.some((r) => /Deposit Explanation Form/.test(r)));
+  assert.equal(result.flags.length, 4);
 });
 
 test("updates the household's one result file and ignores its own uploads", async () => {

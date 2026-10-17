@@ -172,6 +172,7 @@ async function processHousehold(householdFolderId, { box = createBoxClient(), be
     const classifier = await classify(extractions, report, bedrock);
     const serious = (classifier.items || []).filter((item) => item.severity !== "low");
     if (serious.length && report.status === "QUALIFIES") report.status = "NEEDS_REVIEW";
+    report.flags.push(...serious.map((item) => item.reason));
     report.reasons.push(...serious.map((item) => item.reason));
   } catch (error) {
     // The math and rule checks stand; a person looks at what the model could not.
@@ -181,6 +182,7 @@ async function processHousehold(householdFolderId, { box = createBoxClient(), be
       error: errorDiagnostic(error),
     }));
     if (report.status === "QUALIFIES") report.status = "NEEDS_REVIEW";
+    report.flags.push("The AI review step did not run; check the documents by hand.");
     report.reasons.push("The AI review step did not run; check the documents by hand.");
   }
   report.generated_at = new Date().toISOString();
