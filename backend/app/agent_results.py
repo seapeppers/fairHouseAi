@@ -41,15 +41,44 @@ def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", s or "").strip()
 
 
-def load(user, folder_id: str, household_id: str) -> dict | None:
-    """The agent's latest result for this household, or None if there is none (or no access)."""
-    name = household_id + RESULT_SUFFIX
+_results: dict[str, tuple[str, dict]] = {}  # result file id -> (modified_at, parsed result)
+
+
+def _when(item) -> str:
+    v = getattr(item, "modified_at", None)
+    return v.isoformat() if hasattr(v, "isoformat") else str(v or "")
+
+
+def index(user, folder_id: str) -> dict[str, tuple[str, str]]:
+    """household id -> (result file id, modified_at) for every result in the folder."""
     try:
-        items = user.box.folders.get_folder_items(folder_id, fields=["id", "type", "name"], limit=1000).entries or []
-        match = next((i for i in items if i.name == name), None)
-        return json.loads(user.box.downloads.download_file(match.id).read()) if match else None
+        items = user.box.folders.get_folder_items(
+            folder_id, fields=["id", "type", "name", "modified_at"], limit=1000).entries or []
+    except BoxAPIError:
+        return {}
+    return {i.name[: -len(RESULT_SUFFIX)]: (i.id, _when(i)) for i in items if (i.name or "").endswith(RESULT_SUFFIX)}
+
+
+def load(user, folder_id: str, household_id: str, known: dict | None = None) -> dict | None:
+    """The agent's latest result for this household, or None if there is none (or no access).
+
+    Results are cached by file id and modified time, so a dashboard that refreshes
+    every few seconds only downloads a result again when the agent rewrites it.
+    """
+    entry = (known if known is not None else index(user, folder_id)).get(household_id)
+    if not entry:
+        return None
+    file_id, modified_at = entry
+    cached = _results.get(file_id)
+    if cached and cached[0] == modified_at:
+        return cached[1]
+    try:
+        result = json.loads(user.box.downloads.download_file(file_id).read())
     except (BoxAPIError, ValueError):
         return None
+    result["_reviewed_at"] = modified_at
+    _results[file_id] = (modified_at, result)
+    return result
 
 
 def _lines(user, file_id: str) -> list[list[str]]:

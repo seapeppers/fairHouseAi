@@ -54,6 +54,10 @@ export interface CheckResult {
   documents?: DocumentRef[]
   excluded_documents: { file_name: string; reason: string }[]
   rules_version: string
+  /** "agent" when the automatic AI review produced this result, "demo" for the precomputed answer key. */
+  source?: 'agent' | 'demo'
+  /** When the agent finished this review. */
+  reviewed_at?: string
 }
 
 export interface HouseholdSummary {
@@ -72,6 +76,14 @@ export interface HouseholdSummary {
   new_documents?: string[]
   /** Set once an analyst has signed a decision. */
   decided?: Pick<AuditRecord, 'decision' | 'record_id'>
+  /** Where the automatic AI review (Box upload -> agent) stands. */
+  ai_review?: AiReview | null
+}
+
+export interface AiReview {
+  state: 'reviewing' | 'ready' | 'stale' | 'none'
+  reviewed_at?: string
+  since?: string
 }
 
 /** The Box folder the dashboard reads from. */

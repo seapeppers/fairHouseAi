@@ -15,10 +15,15 @@ const TILES: { key: Bucket; label: string; icon: ReactNode; cls: string }[] = [
   { key: 'done', label: 'Done', icon: <DocIcon size={16} />, cls: 'bg-mist-deep text-muted' },
 ]
 
+const REFRESH_MS = 10_000
+
+const time = (iso?: string) =>
+  iso ? new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''
+
 const DECISION_LABEL = { approve: 'Approved', request_info: 'Waiting on documents', not_eligible: 'Not eligible' }
 
 function bucketOf(h: HouseholdSummary): Bucket {
-  if (h.new_documents?.length) return 'review'
+  if (h.new_documents?.length || h.ai_review?.state === 'reviewing') return 'review'
   if (h.decided) return h.decided.decision === 'request_info' ? 'missing' : 'done'
   if (h.status === 'QUALIFIES') return 'ready'
   if (h.status === 'MISSING_INFO') return 'missing'
@@ -45,10 +50,18 @@ export default function Dashboard() {
 
   useEffect(load, [load])
 
+  // Keep the dashboard current while the agent reviews new uploads in the background.
+  useEffect(() => {
+    const t = setInterval(() => {
+      api.households().then(setHouseholds).catch(() => undefined)
+    }, REFRESH_MS)
+    return () => clearInterval(t)
+  }, [])
+
   const all = households ?? []
   const counts = Object.fromEntries(TILES.map((t) => [t.key, all.filter((h) => bucketOf(h) === t.key).length])) as Record<Bucket, number>
   const reviewQueue = all.filter((h) => bucketOf(h) === 'review')
-  const hero = filter === null || filter === 'review' ? (reviewQueue.find((h) => h.status === 'NEEDS_REVIEW' && !h.new_documents?.length) ?? reviewQueue[0] ?? null) : null
+  const hero = filter === null || filter === 'review' ? (reviewQueue.find((h) => h.status === 'NEEDS_REVIEW' && !h.new_documents?.length && h.ai_review?.state !== 'reviewing') ?? null) : null
   const rows = all.filter((h) => h !== hero && (filter === null || bucketOf(h) === filter))
   const building = folder?.name ?? all[0]?.building ?? 'Juniper Court Apartments'
   const fileCount = all.reduce((n, h) => n + (h.files?.length ?? 0), 0)
@@ -161,7 +174,9 @@ export default function Dashboard() {
 }
 
 function HouseholdRow({ h }: { h: HouseholdSummary }) {
-  const fresh = !!h.new_documents?.length
+  const ai = h.ai_review
+  const reviewing = ai?.state === 'reviewing' && !h.decided
+  const fresh = !!h.new_documents?.length && !reviewing
   const to = fresh ? `/households/${h.household_id}?fresh=1` : h.decided ? `/households/${h.household_id}/record` : `/households/${h.household_id}`
   const action = fresh ? 'Check new documents' : h.decided ? 'View record' : 'Review file'
   const files = h.files ?? []
@@ -170,7 +185,12 @@ function HouseholdRow({ h }: { h: HouseholdSummary }) {
     <li className="rounded-[20px] bg-white px-[22px] py-4 shadow-[0_2px_10px_rgba(24,36,31,.05)]">
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
         <div className="min-w-[170px]">
-          {fresh ? (
+          {reviewing ? (
+            <span className="inline-flex items-center gap-2 rounded-full bg-[#E6F0FB] px-3 py-1 text-[13px] font-semibold text-[#0B4F9C]">
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-[#B9D3F2] border-t-[#0B4F9C]" aria-hidden="true" />
+              AI reviewing…
+            </span>
+          ) : fresh ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E6F0FB] px-3 py-1 text-[13px] font-semibold text-[#0B4F9C]">
               <UploadIcon size={13} /> New documents
             </span>
@@ -188,8 +208,13 @@ function HouseholdRow({ h }: { h: HouseholdSummary }) {
             <span className="text-[13px] text-muted">Not checked yet</span>
           )}
         </div>
-        <div className="flex-[1_1_200px] font-semibold" title={h.summary}>
-          {h.name} · Unit {h.unit}
+        <div className="flex-[1_1_200px]" title={h.summary}>
+          <div className="font-semibold">
+            {h.name} · Unit {h.unit}
+          </div>
+          {ai?.state === 'ready' && <div className="text-[13px] text-muted">AI reviewed at {time(ai.reviewed_at)}</div>}
+          {ai?.state === 'stale' && <div className="text-[13px] text-warn">New files since the last AI review</div>}
+          {reviewing && <div className="text-[13px] text-muted">New files arrived. Results appear here automatically.</div>}
         </div>
         {h.projected_annual_income != null && h.income_limit != null && (
           <div className="w-[200px] max-sm:w-full">

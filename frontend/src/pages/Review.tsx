@@ -33,6 +33,8 @@ export default function Review() {
         .check(id, opts)
         .then((r) => {
           setResult(r)
+          // The agent already reviewed this file in the background: no need to replay the stages.
+          if (r.source === 'agent') setShowProgress(false)
           // Open on the first finding that needs attention, if any.
           const first = r.steps.findIndex((s) => s.result !== 'pass')
           const start = first >= 0 ? first : 0
@@ -122,7 +124,11 @@ export default function Review() {
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-serif text-[28px] leading-tight font-semibold">{result.name}</h1>
           <StatusBadge status={result.status} />
-          <span className="text-[13px] text-muted">AI suggested · you decide</span>
+          <span className="text-[13px] text-muted">
+            AI suggested · you decide
+            {result.source === 'agent' && result.reviewed_at &&
+              ` · AI review finished at ${new Date(result.reviewed_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`}
+          </span>
         </div>
         <p className="text-[15px] text-muted">
           <strong className="text-lg text-ink">{money(result.projected_annual_income)}</strong> projected ·{' '}

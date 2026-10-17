@@ -17,7 +17,7 @@ import hashlib
 import io
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from box_sdk_gen import (
@@ -57,7 +57,7 @@ def _kind(item) -> str:
 
 
 def _items(user: User, folder_id: str) -> list:
-    return user.box.folders.get_folder_items(folder_id, fields=["id", "type", "name"], limit=1000).entries or []
+    return user.box.folders.get_folder_items(folder_id, fields=["id", "type", "name", "modified_at"], limit=1000).entries or []
 
 
 def _unit_folders(user: User) -> list[tuple[str, str, str]]:
@@ -109,15 +109,46 @@ def box_folder(user: User = Depends(current_user)):
     }
 
 
-def _agent_result(user: User, household_id: str) -> dict | None:
+# A household with files newer than its last AI review counts as "reviewing" for this
+# long after the newest upload; after that the review is "stale" (the agent didn't run).
+REVIEWING_WINDOW = timedelta(minutes=15)
+
+
+def _agent_index(user: User) -> dict:
+    if config.CHECK_SOURCE == "demo":
+        return {}
+    return agent_results.index(user, _review_folder(user, "Agent results"))
+
+
+def _agent_result(user: User, household_id: str, known: dict | None = None) -> dict | None:
     if config.CHECK_SOURCE == "demo":
         return None
-    return agent_results.load(user, _review_folder(user, "Agent results"), household_id)
+    return agent_results.load(user, _review_folder(user, "Agent results"), household_id, known)
 
 
-def _summary(user: User, household_id: str, unit: str) -> dict | None:
+def _parse(ts: str) -> datetime | None:
+    try:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except (AttributeError, ValueError):
+        return None
+
+
+def _review_state(files: list, reviewed_at: str | None) -> dict:
+    """Where the automatic AI review stands, from Box modified times."""
+    newest = max((t for t in (_parse(agent_results._when(f)) for f in files) if t), default=None)
+    done = _parse(reviewed_at) if reviewed_at else None
+    if done and (not newest or done >= newest):
+        return {"state": "ready", "reviewed_at": reviewed_at}
+    if newest and datetime.now(timezone.utc) - newest < REVIEWING_WINDOW:
+        return {"state": "reviewing", "since": newest.isoformat()}
+    if done:
+        return {"state": "stale", "reviewed_at": reviewed_at}
+    return {"state": "none"}
+
+
+def _summary(user: User, household_id: str, unit: str, known: dict | None = None) -> dict | None:
     """Status fields for the dashboard, from the same source the check uses."""
-    agent = _agent_result(user, household_id) if user.role == "analyst" else None
+    agent = _agent_result(user, household_id, known) if user.role == "analyst" else None
     if agent:
         reasons = agent.get("reasons") or []
         return {"status": agent.get("status"), "summary": reasons[0] if reasons else None,
@@ -130,11 +161,15 @@ def _summary(user: User, household_id: str, unit: str) -> dict | None:
 @router.get("/households")
 def households(user: User = Depends(current_user)):
     building = _building_name(user)
+    known = _agent_index(user) if user.role == "analyst" else {}
     out = []
     for folder_id, unit, name in _unit_folders(user):
-        demo = _summary(user, folder_id, unit)
+        demo = _summary(user, folder_id, unit, known)
         record = _records.get(folder_id)
         files = _files(user, folder_id)
+        review = _review_state(files, known[folder_id][1] if folder_id in known else None)
+        if review["state"] == "ready":
+            _uploads.pop(folder_id, None)  # the agent has already reviewed anything uploaded here
         uploads = _uploads.get(folder_id, [])
         if uploads:
             missing = []
@@ -157,6 +192,7 @@ def households(user: User = Depends(current_user)):
                 for f in files if f.name not in uploads
             ],
             "new_documents": uploads,
+            "ai_review": review if user.role == "analyst" and config.CHECK_SOURCE != "demo" else None,
             "decided": {"decision": record["decision"], "record_id": record["record_id"]} if record else None,
         })
     return out
@@ -172,6 +208,7 @@ def check(household_id: str, user: User = Depends(require_role("analyst"))):
         result = agent_results.to_check_result(user, agent, household_id, unit, name, _building_name(user),
                                                files, RULES_VERSION)
         result["documents"] = [{**d, "label": _label(d["file_name"])} for d in result["documents"]]
+        result["reviewed_at"] = agent.get("_reviewed_at")
         return result
     if config.CHECK_SOURCE == "agent":
         raise HTTPException(404, "The agent has not produced a result for this household yet")
