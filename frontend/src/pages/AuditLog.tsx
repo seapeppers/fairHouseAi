@@ -64,7 +64,7 @@ export default function AuditLog() {
                       {new Date(r.decided_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
                       <div className="flex items-center gap-1.5 text-xs">
                         {r.record_id}
-                        {r.locked !== false && <LockedBadge />}
+                        {r.locked && <LockedBadge />}
                       </div>
                     </div>
                     <div className="flex-[1_1_220px]">
