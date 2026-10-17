@@ -1,0 +1,107 @@
+[
+  {
+    "household": "A_qualifies",
+    "name": "Maria Lopez",
+    "unit": "2A",
+    "household_size": 1,
+    "unit_ami_pct": 60,
+    "income_limit": 69060,
+    "annual_wage_income_from_stubs": 49920.0,
+    "bank_statement_months_provided": 3,
+    "bank_deposit_totals": {
+      "July": 4785.46,
+      "August": 3362.24,
+      "September": 3163.08
+    },
+    "payroll_deposits_in_bank": 11067.84,
+    "non_payroll_deposits": [
+      {
+        "date": "2026-07-14",
+        "description": "ONLINE RETAILER REFUND",
+        "amount": 42.1
+      },
+      {
+        "date": "2026-08-09",
+        "description": "TRANSFER FROM SAVINGS x2210",
+        "amount": 200.0
+      },
+      {
+        "date": "2026-09-30",
+        "description": "INTEREST PAID",
+        "amount": 0.84
+      }
+    ],
+    "status": "QUALIFIES",
+    "projected_annual_income": 49920.0,
+    "reasons": [
+      "Wages: $24.00/hr x 2,080 hours = $49,920.00 (pay stubs).",
+      "Bank deposits: all payroll deposits match the stubs; the refund, savings transfer and interest are not income.",
+      "$49,920.00 is under the $69,060 limit for a 1-person household at 60% AMI."
+    ]
+  },
+  {
+    "household": "B_missing_docs",
+    "name": "Daniel Kim",
+    "unit": "3C",
+    "household_size": 1,
+    "unit_ami_pct": 70,
+    "income_limit": 80570,
+    "annual_wage_income_from_stubs": 64480.0,
+    "bank_statement_months_provided": 2,
+    "bank_deposit_totals": {
+      "July": 6126.84,
+      "August": 4084.56
+    },
+    "payroll_deposits_in_bank": 10211.4,
+    "non_payroll_deposits": [],
+    "status": "MISSING_INFO",
+    "projected_annual_income": 64480.0,
+    "reasons": [
+      "Only 2 of the 3 required consecutive monthly bank statements were provided (September is missing).",
+      "Provisional wages: $31.00/hr x 2,080 hours = $64,480.00, under the $80,570 limit at 70% AMI.",
+      "Cannot certify until the September bank statement is uploaded."
+    ]
+  },
+  {
+    "household": "C_needs_review",
+    "name": "Tyler Brooks",
+    "unit": "5F",
+    "household_size": 1,
+    "unit_ami_pct": 60,
+    "income_limit": 69060,
+    "annual_wage_income_from_stubs": 41600.0,
+    "bank_statement_months_provided": 3,
+    "bank_deposit_totals": {
+      "July": 7033.92,
+      "August": 5189.28,
+      "September": 5189.28
+    },
+    "payroll_deposits_in_bank": 12912.48,
+    "non_payroll_deposits": [
+      {
+        "date": "2026-07-01",
+        "description": "ZELLE FROM R BROOKS",
+        "amount": 1500.0
+      },
+      {
+        "date": "2026-08-01",
+        "description": "ZELLE FROM R BROOKS",
+        "amount": 1500.0
+      },
+      {
+        "date": "2026-09-01",
+        "description": "ZELLE FROM R BROOKS",
+        "amount": 1500.0
+      }
+    ],
+    "status": "NEEDS_REVIEW",
+    "projected_annual_income": 76240.0,
+    "reasons": [
+      "Pay stubs show $20.00/hr (net $1,317.60 per check), but every payroll deposit is $1,844.64, which matches $28.00/hr. The stubs appear altered.",
+      "The September 25 stub shows year-to-date gross of $44,800.00; the September 11 stub implies about $30,400. One $1,600 check cannot explain the jump.",
+      "Recurring monthly Zelle deposits of $1,500 from the same person (R Brooks) count as income but were not declared.",
+      "Using deposited wages ($28.00 x 2,080 = $58,240) plus recurring support ($1,500 x 3 x 4 = $18,000), projected income is $76,240, over the $69,060 limit.",
+      "Deposits over $500 require a Deposit Explanation Form, which is not in the file."
+    ]
+  }
+]
