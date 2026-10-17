@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { Link, NavLink } from 'react-router-dom'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { api } from '../api'
 import { useAuth } from '../auth'
 import { LockIcon } from './Icons'
 import { Logo } from './ui'
@@ -30,7 +31,16 @@ export function FlowHeader({ crumbs, right }: { crumbs: { label: string; to?: st
 
 /** Top bar for home screens: logo, pill navigation, signed-in identity. */
 export function HomeHeader({ variant = 'analyst' }: { variant?: 'analyst' | 'property_manager' }) {
-  const { me, signOut } = useAuth()
+  const { me, signOut, refresh } = useAuth()
+  const navigate = useNavigate()
+
+  async function switchView() {
+    const next = me?.role === 'analyst' ? 'property_manager' : 'analyst'
+    await api.viewAs(next)
+    await refresh()
+    navigate(next === 'analyst' ? '/' : '/upload')
+  }
+
   return (
     <header className="mx-auto flex max-w-[1120px] flex-wrap items-center gap-x-7 gap-y-3 px-8 py-4">
       <Logo />
@@ -63,6 +73,11 @@ export function HomeHeader({ variant = 'analyst' }: { variant?: 'analyst' | 'pro
           <LockIcon className="text-evergreen" />
           Signed in with Box · {me?.role === 'property_manager' ? me.building : 'Compliance reviewer'}
         </span>
+        {me?.can_switch && (
+          <button onClick={switchView} className="cursor-pointer rounded-full bg-white px-3 py-1 font-medium text-evergreen shadow-[0_0_0_1px_var(--color-line)] hover:bg-evergreen-wash">
+            {me.role === 'analyst' ? 'View as property manager' : 'Back to reviewer view'}
+          </button>
+        )}
         <button onClick={signOut} className="cursor-pointer text-muted underline hover:text-ink">
           Sign out
         </button>

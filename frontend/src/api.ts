@@ -60,8 +60,8 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 function readMockRole(): Me | null {
   try {
     const role = sessionStorage.getItem(MOCK_ME_KEY)
-    if (role === 'analyst') return { name: 'Compliance reviewer', role }
-    if (role === 'property_manager') return { name: 'Property manager', role, building: 'Juniper Court Apartments' }
+    if (role === 'analyst') return { name: 'Compliance reviewer', role, can_switch: true }
+    if (role === 'property_manager') return { name: 'Property manager', role, building: 'Juniper Court Apartments', can_switch: true }
   } catch {
     // storage unavailable: treat as signed out
   }
@@ -121,6 +121,19 @@ export const api = {
     }
     checks.clear()
     if (!USE_MOCK) await post('/auth/logout').catch(() => undefined)
+  },
+
+  /** Reviewers only: switch this browser session between reviewer and property manager views. */
+  async viewAs(role: Me['role']): Promise<void> {
+    if (USE_MOCK) {
+      try {
+        sessionStorage.setItem(MOCK_ME_KEY, role)
+      } catch {
+        // ignore
+      }
+      return
+    }
+    await post('/auth/view-as', { role })
   },
 
   async me(): Promise<Me | null> {

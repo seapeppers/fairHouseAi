@@ -9,6 +9,8 @@ export interface Me {
   name: string
   role: Role
   building?: string
+  /** A reviewer can preview the property manager view. */
+  can_switch?: boolean
 }
 
 export interface Evidence {

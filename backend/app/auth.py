@@ -29,6 +29,7 @@ from box_sdk_gen import (
 )
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 
 from . import config
 
@@ -43,6 +44,9 @@ class User:
     login: str
     role: str  # "analyst" | "property_manager"
     building: str | None = None
+    # A reviewer can preview the property manager view in one browser session;
+    # their Box access is unchanged, only what the app shows.
+    can_switch: bool = False
 
 
 _sessions: dict[str, User] = {}
@@ -159,7 +163,25 @@ def require_role(role: str):
 
 @router.get("/me")
 def me(user: User = Depends(current_user)):
-    out = {"name": user.name, "login": user.login, "role": user.role, "mode": config.AUTH_MODE}
+    out = {"name": user.name, "login": user.login, "role": user.role, "mode": config.AUTH_MODE,
+           "can_switch": user.can_switch or user.role == "analyst"}
     if user.building:
         out["building"] = user.building
     return out
+
+
+class ViewAs(BaseModel):
+    role: str
+
+
+@router.post("/auth/view-as")
+def view_as(body: ViewAs, user: User = Depends(current_user)):
+    """Switch this session between the reviewer and property manager views (reviewers only)."""
+    if not (user.can_switch or user.role == "analyst"):
+        raise HTTPException(403, "Only a compliance reviewer can switch views")
+    if body.role not in ("analyst", "property_manager"):
+        raise HTTPException(400, "role must be analyst or property_manager")
+    user.can_switch = True
+    user.role = body.role
+    user.building = _can_open(user.box, config.BOX_BUILDING_FOLDER_ID) if body.role == "property_manager" else None
+    return me(user)
