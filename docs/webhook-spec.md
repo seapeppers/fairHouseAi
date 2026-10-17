@@ -14,7 +14,7 @@ The Lambda accepts only a Box `FILE.UPLOADED` webhook delivered through API Gate
 
 ## Required configuration
 
-`BOX_CLIENT_ID`, `BOX_CLIENT_SECRET`, and `BOX_ENTERPRISE_ID` authenticate the Box CCG app. `BOX_WEBHOOK_PRIMARY_KEY` verifies incoming webhook deliveries. The Box app needs read/write files and folders plus Manage AI scopes and must be enterprise-authorized. `AWS_REGION` and AWS Lambda execution-role permission for `bedrock:InvokeModel` are required for the decider. Set `BOX_USER_ID` only to impersonate a managed user. Set `BOX_RESULTS_FOLDER_ID` to separate reports from source documents.
+`BOX_CLIENT_ID`, `BOX_CLIENT_SECRET`, and `BOX_ENTERPRISE_ID` authenticate the Box CCG app. `BOX_WEBHOOK_PRIMARY_KEY` verifies incoming webhook deliveries. The Box app needs read/write files and folders plus Manage AI scopes and must be enterprise-authorized. `AWS_REGION` and AWS Lambda execution-role permission for `bedrock:InvokeModel` are required for the decider. Set `BOX_USER_ID` only to impersonate a managed user. Set `BOX_RESULTS_FOLDER_ID` to separate reports from source documents. `BOX_INPUTS_FOLDER_ID` is used only by the opt-in live webhook test.
 
 ## Deployment
 
@@ -23,3 +23,5 @@ Use Node.js 22.x with handler `index.handler`. Set API Gateway to pass the unmod
 ## Local credential validation
 
 Copy `.env.example` into a shell environment without committing secrets, then run `npm run test:e2e`. The Box check validates CCG access to the results folder. The Bedrock check validates AWS credentials, regional model access, and invocation permission. Tests skip only when their corresponding configuration is absent and fail on invalid configured credentials.
+
+To exercise the live Box webhook, set `BOX_INPUTS_FOLDER_ID`, `BOX_RESULTS_FOLDER_ID`, and `RUN_BOX_WEBHOOK_E2E=1`, then run `npm run test:e2e`. The test uploads a unique text fixture to the input folder and polls the results folder for `fairhouse-review-<file-id>.json` for up to 150 seconds.

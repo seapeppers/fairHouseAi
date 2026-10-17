@@ -16,6 +16,17 @@ const required = (name) => {
   return value;
 };
 
+function errorDiagnostic(error) {
+  return {
+    name: error?.name,
+    message: error?.message,
+    code: error?.code,
+    fault: error?.$fault,
+    httpStatusCode: error?.$metadata?.httpStatusCode,
+    requestId: error?.$metadata?.requestId,
+  };
+}
+
 function createBoxClient() {
   const auth = new BoxCcgAuth({
     config: new CcgConfig({
@@ -30,14 +41,46 @@ function createBoxClient() {
 }
 
 function verifySignature(headers, body) {
-  const signature = headers?.["box-signature"] || headers?.["Box-Signature"];
-  const deliveryTimestamp = headers?.["box-delivery-timestamp"] || headers?.["Box-Delivery-Timestamp"];
-  if (!signature || !deliveryTimestamp) return false;
+  const normalizedHeaders = Object.fromEntries(
+    Object.entries(headers || {}).map(([name, value]) => [name.toLowerCase(), value]),
+  );
+  const signature = normalizedHeaders["box-signature-primary"];
+  const deliveryTimestamp = normalizedHeaders["box-delivery-timestamp"];
+  if (!signature) {
+    console.info("Box webhook signature diagnostic", JSON.stringify({
+      headerNames: Object.keys(normalizedHeaders).sort(),
+      bodyBytes: body.length,
+      signaturePresent: false,
+    }));
+    return false;
+  }
+  if (!deliveryTimestamp) {
+    console.info("Box webhook signature diagnostic", JSON.stringify({
+      headerNames: Object.keys(normalizedHeaders).sort(),
+      bodyBytes: body.length,
+      signaturePresent: true,
+      deliveryTimestampPresent: false,
+    }));
+    return false;
+  }
   const expected = crypto
     .createHmac("sha256", required("BOX_WEBHOOK_PRIMARY_KEY"))
-    .update(`${body}${deliveryTimestamp}`)
+    .update(body)
+    .update(deliveryTimestamp)
     .digest("base64");
-  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  const actualBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  const matches = actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+  console.info("Box webhook signature diagnostic", JSON.stringify({
+    headerNames: Object.keys(normalizedHeaders).sort(),
+    bodyBytes: body.length,
+    signaturePresent: true,
+    deliveryTimestampPresent: true,
+    signatureLength: actualBuffer.length,
+    signatureEncoding: /^[A-Za-z0-9+/]+={0,2}$/.test(signature) ? "base64-like" : "other",
+    matches,
+  }));
+  return matches;
 }
 
 async function decide(extractions, bedrock) {
@@ -60,19 +103,45 @@ async function decide(extractions, bedrock) {
 
 async function processWebhook(event, { box = createBoxClient(), bedrock = new BedrockRuntimeClient({}) } = {}) {
   const uploaded = parseWebhookEvent(event);
+  console.info("FairHouse webhook processing started", JSON.stringify({
+    eventId: uploaded.eventId,
+    fileId: uploaded.fileId,
+    parentFolderId: uploaded.parentFolderId,
+  }));
   const folderItems = await box.folders.getFolderItems(uploaded.parentFolderId, {
     queryParams: { fields: ["id", "type", "name", "parent"] },
   });
   const files = (folderItems.entries || []).filter(isEligibleDocument);
   const extractions = [];
   for (const file of files) {
-    const result = await box.ai.createAiExtractStructured({
-      items: [{ id: file.id, type: "file" }],
-      fields: buildExtractionFields(file.name),
-    });
+    let result;
+    try {
+      result = await box.ai.createAiExtractStructured({
+        items: [{ id: file.id, type: "file" }],
+        fields: buildExtractionFields(file.name),
+      });
+    } catch (error) {
+      console.error("FairHouse Box extraction failed", JSON.stringify({
+        fileId: file.id,
+        fileName: file.name,
+        error: errorDiagnostic(error),
+      }));
+      throw error;
+    }
     extractions.push({ file_id: file.id, file_name: file.name, extract: normalizeExtractResponse(result) });
   }
-  const decision = await decide(extractions, bedrock);
+  let decision;
+  try {
+    decision = await decide(extractions, bedrock);
+  } catch (error) {
+    console.error("FairHouse Bedrock decision failed", JSON.stringify({
+      fileId: uploaded.fileId,
+      extractionCount: extractions.length,
+      modelId: process.env.BEDROCK_MODEL_ID || "amazon.nova-2-lite-v1",
+      error: errorDiagnostic(error),
+    }));
+    throw error;
+  }
   if (reviewRequired(decision) && process.env.BOX_REVIEWER_USER_ID) {
     const task = await box.tasks.createTask({
       item: { type: "file", id: uploaded.fileId },
@@ -93,21 +162,44 @@ async function processWebhook(event, { box = createBoxClient(), bedrock = new Be
     manual_review: decision,
   };
   const destinationFolderId = process.env.BOX_RESULTS_FOLDER_ID || uploaded.parentFolderId;
-  const uploadedReport = await box.uploads.uploadFile({
-    attributes: { name: `fairhouse-review-${uploaded.fileId}.json`, parent: { id: destinationFolderId } },
-    file: Readable.from(Buffer.from(JSON.stringify(report, null, 2))),
-  });
+  let uploadedReport;
+  try {
+    uploadedReport = await box.uploads.uploadFile({
+      attributes: { name: `fairhouse-review-${uploaded.fileId}.json`, parent: { id: destinationFolderId } },
+      file: Readable.from(Buffer.from(JSON.stringify(report, null, 2))),
+    });
+  } catch (error) {
+    console.error("FairHouse report upload failed", JSON.stringify({
+      fileId: uploaded.fileId,
+      destinationFolderId,
+      error: errorDiagnostic(error),
+    }));
+    throw error;
+  }
   return { reportFileId: uploadedReport.entries?.[0]?.id, manualReviewRequired: reviewRequired(decision) };
 }
 
 export const handler = async (event) => {
-  const body = typeof event.body === "string" ? event.body : JSON.stringify(event.body || {});
-  if (!verifySignature(event.headers || {}, body)) return { statusCode: 401, body: "Invalid Box webhook signature" };
+  const body = event.isBase64Encoded
+    ? Buffer.from(event.body || "", "base64")
+    : Buffer.from(typeof event.body === "string" ? event.body : JSON.stringify(event.body || {}));
+  const requestId = event.requestContext?.requestId;
+  const signatureValid = verifySignature(event.headers || {}, body);
+  console.info("FairHouse webhook received", JSON.stringify({
+    requestId,
+    bodyBytes: body.length,
+    isBase64Encoded: Boolean(event.isBase64Encoded),
+    signatureValid,
+  }));
+  if (!signatureValid) return { statusCode: 401, body: "Invalid Box webhook signature" };
   try {
-    const result = await processWebhook({ ...event, body });
+    const result = await processWebhook({ ...event, body: body.toString("utf8") });
     return { statusCode: 202, body: JSON.stringify(result) };
   } catch (error) {
-    console.error("FairHouse webhook processing failed", error);
+    console.error("FairHouse webhook processing failed", JSON.stringify({
+      requestId,
+      error: errorDiagnostic(error),
+    }));
     return { statusCode: 500, body: JSON.stringify({ error: "Webhook processing failed" }) };
   }
 };
