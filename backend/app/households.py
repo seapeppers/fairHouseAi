@@ -377,6 +377,11 @@ def audit(user: User = Depends(require_role("analyst"))):
 async def upload(household_id: str, file: UploadFile, user: User = Depends(current_user)):
     _household(user, household_id)
     name = file.filename or "document.pdf"
+    if name in {f.name for f in _files(user, household_id)}:
+        # Never overwrite or collide with a file already in the folder: keep both.
+        stem, dot, ext = name.rpartition(".")
+        stamp = datetime.now(timezone.utc).strftime("%H-%M-%S")
+        name = f"{stem} (uploaded {stamp}).{ext}" if dot else f"{name} (uploaded {stamp})"
     _upload(user, household_id, name, await file.read())
     _uploads.setdefault(household_id, []).append(name)
     # The household needs a fresh check; its signed record stays in the audit log and in Box.
