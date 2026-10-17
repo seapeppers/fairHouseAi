@@ -1,0 +1,418 @@
+{
+  "2A": {
+    "household_id": "A_qualifies",
+    "name": "Maria Lopez",
+    "building": "Juniper Court Apartments",
+    "unit": "2A",
+    "household_size": 1,
+    "unit_ami_pct": 60,
+    "income_limit": 69060,
+    "projected_annual_income": 49920,
+    "status": "QUALIFIES",
+    "summary": "Wages match the bank deposits, and income is under the 60% AMI limit.",
+    "documents": [
+      {
+        "file_id": "A_qualifies/paystubs_jul-sep_2026.pdf",
+        "file_name": "paystubs_jul-sep_2026.pdf",
+        "label": "Pay stubs"
+      },
+      {
+        "file_id": "A_qualifies/bank_statement_2026-07.pdf",
+        "file_name": "bank_statement_2026-07.pdf",
+        "label": "Bank · Jul"
+      },
+      {
+        "file_id": "A_qualifies/bank_statement_2026-08.pdf",
+        "file_name": "bank_statement_2026-08.pdf",
+        "label": "Bank · Aug"
+      },
+      {
+        "file_id": "A_qualifies/bank_statement_2026-09.pdf",
+        "file_name": "bank_statement_2026-09.pdf",
+        "label": "Bank · Sep"
+      },
+      {
+        "file_id": "A_qualifies/income_declaration.pdf",
+        "file_name": "income_declaration.pdf",
+        "label": "Declaration"
+      }
+    ],
+    "steps": [
+      {
+        "id": "documents",
+        "title": "Required documents",
+        "headline": "All required documents are on file",
+        "detail": "3 consecutive bank statements, 7 pay stubs and the income declaration are present.",
+        "result": "pass",
+        "evidence": [
+          {
+            "file_id": "A_qualifies/bank_statement_2026-09.pdf",
+            "file_name": "bank_statement_2026-09.pdf",
+            "page": 1,
+            "quote": "Statement period: September 1, 2026 - September 30, 2026"
+          }
+        ]
+      },
+      {
+        "id": "wages",
+        "title": "Wage income",
+        "headline": "Pay stubs match the payroll deposits",
+        "detail": "$24.00/hr × 2,080 hours = $49,920. Each payroll deposit of $1,581.12 matches the net pay on the stubs.",
+        "amount": 49920,
+        "result": "pass",
+        "evidence": [
+          {
+            "file_id": "A_qualifies/paystubs_jul-sep_2026.pdf",
+            "file_name": "paystubs_jul-sep_2026.pdf",
+            "page": 1,
+            "quote": "Hourly rate: $24.00"
+          },
+          {
+            "file_id": "A_qualifies/bank_statement_2026-07.pdf",
+            "file_name": "bank_statement_2026-07.pdf",
+            "page": 1,
+            "quote": "07/03/2026 EVERGREEN ROASTERS LLC PAYROLL DIRECT DEP $1,581.12"
+          }
+        ]
+      },
+      {
+        "id": "ytd",
+        "title": "Year-to-date totals",
+        "headline": "Year-to-date totals add up",
+        "detail": "Year-to-date gross rises by $1,920 each pay period, ending at $38,400 on Sep 25.",
+        "result": "pass",
+        "evidence": [
+          {
+            "file_id": "A_qualifies/paystubs_jul-sep_2026.pdf",
+            "file_name": "paystubs_jul-sep_2026.pdf",
+            "page": 7,
+            "quote": "Year-to-date gross: $38,400.00"
+          }
+        ]
+      },
+      {
+        "id": "deposits",
+        "title": "Other deposits",
+        "headline": "Other deposits are not income",
+        "detail": "A refund, a transfer from savings and bank interest. None of these count as income.",
+        "result": "pass",
+        "evidence": [
+          {
+            "file_id": "A_qualifies/bank_statement_2026-07.pdf",
+            "file_name": "bank_statement_2026-07.pdf",
+            "page": 1,
+            "quote": "07/14/2026 ONLINE RETAILER REFUND $42.10"
+          },
+          {
+            "file_id": "A_qualifies/bank_statement_2026-08.pdf",
+            "file_name": "bank_statement_2026-08.pdf",
+            "page": 1,
+            "quote": "08/09/2026 TRANSFER FROM SAVINGS x2210 $200.00"
+          }
+        ]
+      },
+      {
+        "id": "total",
+        "title": "Total vs. limit",
+        "headline": "Income is under the limit",
+        "detail": "$49,920 is under the $69,060 limit for a 1-person household at 60% AMI.",
+        "amount": 49920,
+        "result": "pass",
+        "result_label": "Under limit",
+        "evidence": [
+          {
+            "file_id": "A_qualifies/income_declaration.pdf",
+            "file_name": "income_declaration.pdf",
+            "page": 1,
+            "quote": "Unit income restriction: 60% AMI (MFTE Program 7)"
+          }
+        ]
+      }
+    ],
+    "excluded_documents": [
+      {
+        "file_name": "resident_demographic_form.pdf",
+        "reason": "Never used for eligibility decisions"
+      }
+    ],
+    "rules_version": "Seattle MILU Compliance Manual (Sep 8, 2026); MFTE P7 limits (May 15, 2026)",
+    "missing_documents": []
+  },
+  "3C": {
+    "household_id": "B_missing_docs",
+    "name": "Daniel Kim",
+    "building": "Juniper Court Apartments",
+    "unit": "3C",
+    "household_size": 1,
+    "unit_ami_pct": 70,
+    "income_limit": 80570,
+    "projected_annual_income": 64480,
+    "status": "MISSING_INFO",
+    "summary": "The September 2026 bank statement is missing. Income looks under the limit so far.",
+    "documents": [
+      {
+        "file_id": "B_missing_docs/paystubs_jul-sep_2026.pdf",
+        "file_name": "paystubs_jul-sep_2026.pdf",
+        "label": "Pay stubs"
+      },
+      {
+        "file_id": "B_missing_docs/bank_statement_2026-07.pdf",
+        "file_name": "bank_statement_2026-07.pdf",
+        "label": "Bank · Jul"
+      },
+      {
+        "file_id": "B_missing_docs/bank_statement_2026-08.pdf",
+        "file_name": "bank_statement_2026-08.pdf",
+        "label": "Bank · Aug"
+      },
+      {
+        "file_id": "B_missing_docs/income_declaration.pdf",
+        "file_name": "income_declaration.pdf",
+        "label": "Declaration"
+      }
+    ],
+    "steps": [
+      {
+        "id": "documents",
+        "title": "Required documents",
+        "headline": "September bank statement is missing",
+        "detail": "Only July and August bank statements were provided. Three consecutive months are required.",
+        "result": "fail",
+        "result_label": "Missing",
+        "evidence": [
+          {
+            "file_id": "B_missing_docs/bank_statement_2026-08.pdf",
+            "file_name": "bank_statement_2026-08.pdf",
+            "page": 1,
+            "quote": "Statement period: August 1, 2026 - August 31, 2026"
+          }
+        ]
+      },
+      {
+        "id": "wages",
+        "title": "Wage income",
+        "headline": "Pay stubs match the payroll deposits",
+        "detail": "$31.00/hr × 2,080 hours = $64,480. Each payroll deposit of $2,042.28 matches the stubs.",
+        "amount": 64480,
+        "result": "pass",
+        "evidence": [
+          {
+            "file_id": "B_missing_docs/paystubs_jul-sep_2026.pdf",
+            "file_name": "paystubs_jul-sep_2026.pdf",
+            "page": 1,
+            "quote": "Hourly rate: $31.00"
+          },
+          {
+            "file_id": "B_missing_docs/bank_statement_2026-08.pdf",
+            "file_name": "bank_statement_2026-08.pdf",
+            "page": 1,
+            "quote": "08/14/2026 NORTHWIND LOGISTICS INC PAYROLL DIRECT DEP $2,042.28"
+          }
+        ]
+      },
+      {
+        "id": "ytd",
+        "title": "Year-to-date totals",
+        "headline": "Year-to-date totals add up",
+        "detail": "Year-to-date gross rises by $2,480 each pay period, ending at $49,600 on Sep 25.",
+        "result": "pass",
+        "evidence": [
+          {
+            "file_id": "B_missing_docs/paystubs_jul-sep_2026.pdf",
+            "file_name": "paystubs_jul-sep_2026.pdf",
+            "page": 7,
+            "quote": "Year-to-date gross: $49,600.00"
+          }
+        ]
+      },
+      {
+        "id": "deposits",
+        "title": "Other deposits",
+        "headline": "No other deposits in July or August",
+        "detail": "Only payroll deposits appear on the two statements provided.",
+        "result": "pass",
+        "evidence": [
+          {
+            "file_id": "B_missing_docs/bank_statement_2026-07.pdf",
+            "file_name": "bank_statement_2026-07.pdf",
+            "page": 1,
+            "quote": "Total deposits this period: $6,126.84"
+          }
+        ]
+      },
+      {
+        "id": "total",
+        "title": "Total vs. limit",
+        "headline": "Under the limit, but not final",
+        "detail": "$64,480 is under the $80,570 limit at 70% AMI. This can’t be certified until September is in.",
+        "amount": 64480,
+        "result": "warn",
+        "result_label": "Provisional",
+        "evidence": [
+          {
+            "file_id": "B_missing_docs/income_declaration.pdf",
+            "file_name": "income_declaration.pdf",
+            "page": 1,
+            "quote": "Unit income restriction: 70% AMI (MFTE Program 7)"
+          }
+        ]
+      }
+    ],
+    "excluded_documents": [
+      {
+        "file_name": "resident_demographic_form.pdf",
+        "reason": "Never used for eligibility decisions"
+      }
+    ],
+    "rules_version": "Seattle MILU Compliance Manual (Sep 8, 2026); MFTE P7 limits (May 15, 2026)",
+    "missing_documents": [
+      "Bank statement, September 2026"
+    ]
+  },
+  "5F": {
+    "household_id": "C_needs_review",
+    "name": "Tyler Brooks",
+    "building": "Juniper Court Apartments",
+    "unit": "5F",
+    "household_size": 1,
+    "unit_ami_pct": 60,
+    "income_limit": 69060,
+    "projected_annual_income": 76240,
+    "status": "NEEDS_REVIEW",
+    "summary": "The pay stub and the bank don’t agree, and a monthly deposit isn’t on the declaration.",
+    "documents": [
+      {
+        "file_id": "C_needs_review/paystubs_jul-sep_2026.pdf",
+        "file_name": "paystubs_jul-sep_2026.pdf",
+        "label": "Pay stubs"
+      },
+      {
+        "file_id": "C_needs_review/bank_statement_2026-07.pdf",
+        "file_name": "bank_statement_2026-07.pdf",
+        "label": "Bank · Jul"
+      },
+      {
+        "file_id": "C_needs_review/bank_statement_2026-08.pdf",
+        "file_name": "bank_statement_2026-08.pdf",
+        "label": "Bank · Aug"
+      },
+      {
+        "file_id": "C_needs_review/bank_statement_2026-09.pdf",
+        "file_name": "bank_statement_2026-09.pdf",
+        "label": "Bank · Sep"
+      },
+      {
+        "file_id": "C_needs_review/income_declaration.pdf",
+        "file_name": "income_declaration.pdf",
+        "label": "Declaration"
+      }
+    ],
+    "steps": [
+      {
+        "id": "documents",
+        "title": "Required documents",
+        "headline": "All required documents are on file",
+        "detail": "3 consecutive bank statements, 7 pay stubs and the income declaration are present.",
+        "result": "pass",
+        "evidence": [
+          {
+            "file_id": "C_needs_review/bank_statement_2026-09.pdf",
+            "file_name": "bank_statement_2026-09.pdf",
+            "page": 1,
+            "quote": "Statement period: September 1, 2026 - September 30, 2026"
+          }
+        ]
+      },
+      {
+        "id": "wages",
+        "title": "Wage income",
+        "headline": "Pay stub and bank deposits don’t match",
+        "detail": "Pay stubs list $20.00/hr. Each payroll deposit is $1,844.64, which matches $28.00/hr.",
+        "amount": 58240,
+        "result": "warn",
+        "evidence": [
+          {
+            "file_id": "C_needs_review/paystubs_jul-sep_2026.pdf",
+            "file_name": "paystubs_jul-sep_2026.pdf",
+            "page": 1,
+            "quote": "Hourly rate: $20.00"
+          },
+          {
+            "file_id": "C_needs_review/bank_statement_2026-07.pdf",
+            "file_name": "bank_statement_2026-07.pdf",
+            "page": 1,
+            "quote": "07/03/2026 CASCADE FREIGHT SERVICES PAYROLL DIRECT DEP $1,844.64"
+          }
+        ]
+      },
+      {
+        "id": "ytd",
+        "title": "Year-to-date totals",
+        "headline": "Year-to-date jumps by $14,400 in one check",
+        "detail": "The Sep 11 stub shows $30,400 year-to-date. Two weeks later it shows $44,800. One $1,600 check can’t explain that.",
+        "result": "warn",
+        "evidence": [
+          {
+            "file_id": "C_needs_review/paystubs_jul-sep_2026.pdf",
+            "file_name": "paystubs_jul-sep_2026.pdf",
+            "page": 6,
+            "quote": "Year-to-date gross: $30,400.00"
+          },
+          {
+            "file_id": "C_needs_review/paystubs_jul-sep_2026.pdf",
+            "file_name": "paystubs_jul-sep_2026.pdf",
+            "page": 7,
+            "quote": "Year-to-date gross: $44,800.00"
+          }
+        ]
+      },
+      {
+        "id": "deposits",
+        "title": "Other deposits",
+        "headline": "A $1,500 monthly deposit isn’t declared",
+        "detail": "“ZELLE FROM R BROOKS” arrives every month. Recurring support counts as income, and deposits over $500 need a Deposit Explanation Form, which isn’t in the file.",
+        "amount": 18000,
+        "result": "warn",
+        "evidence": [
+          {
+            "file_id": "C_needs_review/bank_statement_2026-07.pdf",
+            "file_name": "bank_statement_2026-07.pdf",
+            "page": 1,
+            "quote": "07/01/2026 ZELLE FROM R BROOKS $1,500.00"
+          },
+          {
+            "file_id": "C_needs_review/income_declaration.pdf",
+            "file_name": "income_declaration.pdf",
+            "page": 1,
+            "quote": "Declared: None"
+          }
+        ]
+      },
+      {
+        "id": "total",
+        "title": "Total vs. limit",
+        "headline": "Projected income is over the limit",
+        "detail": "$58,240 in deposited wages + $18,000 in recurring deposits = $76,240, above the $69,060 limit.",
+        "amount": 76240,
+        "result": "fail",
+        "result_label": "Over limit",
+        "evidence": [
+          {
+            "file_id": "C_needs_review/income_declaration.pdf",
+            "file_name": "income_declaration.pdf",
+            "page": 1,
+            "quote": "Unit income restriction: 60% AMI (MFTE Program 7)"
+          }
+        ]
+      }
+    ],
+    "excluded_documents": [
+      {
+        "file_name": "resident_demographic_form.pdf",
+        "reason": "Never used for eligibility decisions"
+      }
+    ],
+    "rules_version": "Seattle MILU Compliance Manual (Sep 8, 2026); MFTE P7 limits (May 15, 2026)",
+    "missing_documents": []
+  }
+}

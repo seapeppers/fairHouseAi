@@ -50,7 +50,7 @@ export default function Record() {
 
   const rows: [string, React.ReactNode][] = [
     ['Decision', <strong className="font-semibold">{DECISION_TEXT[record.decision]}</strong>],
-    ['Decided by', `${record.decided_by} · signed with Box Sign`],
+    ['Decided by', `${record.decided_by} · signed with Box sign-in`],
     ['AI suggestion', <>{STATUS_TEXT[record.ai_status]} <span className="text-muted">(for reference; not the decision)</span></>],
     ['Reason', record.note],
     ...(record.requested_documents.length ? ([['Requested', record.requested_documents.join(' · ')]] as [string, React.ReactNode][]) : []),

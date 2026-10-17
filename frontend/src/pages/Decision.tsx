@@ -91,7 +91,7 @@ export default function Decision() {
       await api.decide(id, { decision, note: note.trim(), requested_documents: decision === 'request_info' ? requested : [] })
       navigate(`/households/${id}/record`)
     } catch {
-      setError('Box Sign didn’t go through. Nothing was saved. Please try again.')
+      setError('Signing didn’t go through. Nothing was saved. Please try again.')
       setSigning(false)
     }
   }
@@ -228,7 +228,7 @@ export default function Decision() {
             <div className="flex flex-wrap items-center gap-x-4 gap-y-3 pt-1">
               <PrimaryButton type="submit" disabled={!canSign || signing}>
                 <PenIcon />
-                {signing ? 'Signing with Box Sign…' : 'Sign decision with Box Sign'}
+                {signing ? 'Signing and saving to Box…' : 'Sign decision'}
               </PrimaryButton>
               <span className={`text-[13px] ${canSign ? 'text-muted' : 'text-warn'}`} aria-live="polite">
                 {canSign ? 'Your name, the time and every finding are saved to Box.' : `To sign: ${todo.join(', ')}.`}

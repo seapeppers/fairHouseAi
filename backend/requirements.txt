@@ -4,3 +4,4 @@ uvicorn[standard]
 python-dotenv
 itsdangerous
 boto3
+python-multipart

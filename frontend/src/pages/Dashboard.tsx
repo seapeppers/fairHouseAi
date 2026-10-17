@@ -134,7 +134,7 @@ export default function Dashboard() {
                   to={`/households/${hero.household_id}${hero.new_documents?.length ? '?fresh=1' : ''}`}
                   className="inline-flex min-h-[52px] items-center rounded-full bg-marker px-[26px] font-bold text-ink no-underline hover:brightness-95"
                 >
-                  {hero.new_documents?.length ? 'Run check →' : 'Start review →'}
+                  {hero.new_documents?.length ? 'Check new documents →' : 'Review file →'}
                 </Link>
               </div>
             )}
@@ -163,7 +163,7 @@ export default function Dashboard() {
 function HouseholdRow({ h }: { h: HouseholdSummary }) {
   const fresh = !!h.new_documents?.length
   const to = fresh ? `/households/${h.household_id}?fresh=1` : h.decided ? `/households/${h.household_id}/record` : `/households/${h.household_id}`
-  const action = fresh ? 'Run check' : h.decided ? 'View record' : h.status === 'QUALIFIES' ? 'Review & approve' : 'Review'
+  const action = fresh ? 'Check new documents' : h.decided ? 'View record' : 'Review file'
   const files = h.files ?? []
 
   return (

@@ -127,10 +127,10 @@ def demo_login(request: Request, role: str):
     if _service().token_storage.get() is None:
         raise HTTPException(409, "No shared Box connection yet: an analyst must open "
                                  "/auth/box/login?service=1 once")
-    user = _load_user(BoxClient(auth=_service()))
+    box = BoxClient(auth=_service())
+    user = _load_user(box)
     user.role = role
-    if role == "analyst":
-        user.building = None
+    user.building = _can_open(box, config.BOX_BUILDING_FOLDER_ID) if role == "property_manager" else None
     _start_session(request, user)
     return RedirectResponse(config.FRONTEND_URL)
 
