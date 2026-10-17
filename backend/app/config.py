@@ -35,4 +35,4 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
 SESSION_SECRET = _require("SESSION_SECRET")
 
 AWS_REGION = os.environ.get("AWS_REGION", "us-west-2")
-BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-5-5")
+BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-opus-4-6-v1")
