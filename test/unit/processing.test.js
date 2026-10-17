@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { isEligibleDocument, parseWebhookEvent, resultFileName, reviewRequired, submissionIdFromFileName } from "../../lib/processing.js";
+import { isEligibleDocument, parseWebhookEvent, resultFileName, reviewRequired } from "../../lib/processing.js";
 import { calculateEligibility } from "../../lib/eligibility.js";
 import incomeLimits from "../../data/rules/income_limits_mfte_p7_2026.json" with { type: "json" };
 import { handler, processWebhook, verifySignature } from "../../index.js";
@@ -17,16 +17,13 @@ test("rejects events other than a file upload", () => {
 });
 
 test("excludes demographic forms and generated reports", () => {
-  assert.equal(isEligibleDocument({ type: "file", name: "ABCDE_resident_demographic_form.pdf" }), false);
-  assert.equal(isEligibleDocument({ type: "file", name: "ABCDE_expected_results.json" }), false);
-  assert.equal(isEligibleDocument({ type: "file", name: "ABCDE_paystubs.pdf" }), true);
-  assert.equal(isEligibleDocument({ type: "file", name: "paystubs.pdf" }), false);
+  assert.equal(isEligibleDocument({ type: "file", name: "resident_demographic_form.pdf" }), false);
+  assert.equal(isEligibleDocument({ type: "file", name: "428511210357_check_result.json" }), false);
+  assert.equal(isEligibleDocument({ type: "file", name: "paystubs.pdf" }), true);
 });
 
-test("derives submission and result file names", () => {
-  assert.equal(submissionIdFromFileName("AB12C_paystub.pdf"), "AB12C");
-  assert.equal(submissionIdFromFileName("A12345_paystub.pdf"), undefined);
-  assert.equal(resultFileName("AB12C"), "AB12C_expected_results.json");
+test("derives result file name from source folder ID", () => {
+  assert.equal(resultFileName("428511210357"), "428511210357_check_result.json");
 });
 
 test("calculates a qualifying result from structured extracts", () => {
@@ -44,14 +41,14 @@ test("calculates a qualifying result from structured extracts", () => {
   assert.equal(result.income_limit, 69060);
 });
 
-test("updates one result file for multiple files sharing a submission prefix", async () => {
+test("updates one result file for every file in the source folder", async () => {
   const uploaded = [];
-  const existing = { id: "report-1", type: "file", name: "ABCDE_expected_results.json" };
+  const existing = { id: "report-1", type: "file", name: "input_check_result.json" };
   const box = {
     folders: { getFolderItems: async () => ({ entries: [
-      { id: "one", type: "file", name: "ABCDE_one.pdf" },
-      { id: "two", type: "file", name: "ABCDE_two.pdf" },
-      { id: "other", type: "file", name: "FGHIJ_other.pdf" },
+      { id: "one", type: "file", name: "one.pdf" },
+      { id: "two", type: "file", name: "two.pdf" },
+      { id: "other", type: "file", name: "other.pdf" },
       existing,
     ] }) },
     ai: { createAiExtractStructured: async ({ items }) => ({ answer: { document_type: "Pay Stub", applicant_name: "Maria", unit: "2A", household_size: 1, unit_ami_pct: 60, hourly_rate: 24, file_id: items[0].id } }) },
@@ -66,7 +63,11 @@ test("updates one result file for multiple files sharing a submission prefix", a
   assert.equal(result.updated, true);
   assert.equal(uploaded.length, 1);
   assert.equal(uploaded[0].fileId, "report-1");
-  assert.equal(uploaded[0].body.attributes.name, "ABCDE_expected_results.json");
+  assert.equal(uploaded[0].body.attributes.name, "input_check_result.json");
+  const chunks = [];
+  for await (const chunk of uploaded[0].body.file) chunks.push(chunk);
+  const report = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  assert.deepEqual(report.analyzed_file_ids, ["one", "two", "other"]);
 });
 
 test("routes decision items to manual review", () => {

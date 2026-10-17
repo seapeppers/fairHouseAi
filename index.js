@@ -9,7 +9,6 @@ import {
   normalizeExtractResponse,
   parseWebhookEvent,
   resultFileName,
-  submissionIdFromFileName,
 } from "./lib/processing.js";
 import { calculateEligibility } from "./lib/eligibility.js";
 
@@ -131,18 +130,14 @@ async function writeResult(box, folderId, name, content, existing) {
 
 async function processWebhook(event, { box = createBoxClient(), bedrock = new BedrockRuntimeClient({}) } = {}) {
   const uploaded = parseWebhookEvent(event);
-  const submissionId = submissionIdFromFileName(uploaded.fileName);
-  if (!submissionId) {
-    console.info("FairHouse webhook ignored file without submission prefix", JSON.stringify({ fileId: uploaded.fileId, fileName: uploaded.fileName }));
-    return { ignored: true, reason: "Missing five-character submission prefix" };
-  }
   console.info("FairHouse webhook processing started", JSON.stringify({
     eventId: uploaded.eventId,
     fileId: uploaded.fileId,
     parentFolderId: uploaded.parentFolderId,
   }));
   const folderItems = await listFolderItems(box, uploaded.parentFolderId);
-  const files = folderItems.filter((file) => submissionIdFromFileName(file.name) === submissionId && isEligibleDocument(file));
+  const sourceResultName = resultFileName(uploaded.parentFolderId);
+  const files = folderItems.filter((file) => isEligibleDocument(file) && file.name !== sourceResultName);
   const extractions = [];
   for (const file of files) {
     let result;
@@ -173,11 +168,13 @@ async function processWebhook(event, { box = createBoxClient(), bedrock = new Be
     }));
     throw error;
   }
-  const report = calculateEligibility(submissionId, extractions, incomeLimits);
+  const report = calculateEligibility(uploaded.parentFolderId, extractions, incomeLimits);
+  report.analyzed_file_ids = extractions.map((item) => item.file_id);
+  report.analyzed_file_names = extractions.map((item) => item.file_name);
   if (classifier.items?.length && report.status === "QUALIFIES") report.status = "NEEDS_REVIEW";
   report.reasons.push(...(classifier.items || []).map((item) => item.reason));
   const destinationFolderId = process.env.BOX_RESULTS_FOLDER_ID || uploaded.parentFolderId;
-  const resultName = resultFileName(submissionId);
+  const resultName = resultFileName(uploaded.parentFolderId);
   const destinationItems = await listFolderItems(box, destinationFolderId);
   const existing = destinationItems.find((item) => item.type === "file" && item.name === resultName);
   let reportFileId;
@@ -191,7 +188,7 @@ async function processWebhook(event, { box = createBoxClient(), bedrock = new Be
     }));
     throw error;
   }
-  return { reportFileId, submissionId, status: report.status, updated: Boolean(existing) };
+  return { reportFileId, folderId: uploaded.parentFolderId, status: report.status, updated: Boolean(existing) };
 }
 
 export const handler = async (event) => {
