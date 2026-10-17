@@ -29,17 +29,17 @@ const webhookE2eConfigured = configured
   && process.env.BOX_INPUTS_FOLDER_ID
   && process.env.BOX_RESULTS_FOLDER_ID;
 
-test("Box upload webhook writes a JSON report to the results folder", { skip: !webhookE2eConfigured, timeout: 180_000 }, async () => {
+test("Box uploads with the same submission prefix update one result file", { skip: !webhookE2eConfigured, timeout: 240_000 }, async () => {
   const client = createBoxClient();
-  const marker = `fairhouse-e2e-${Date.now()}`;
-  const inputName = `${marker}.txt`;
-  const expectedReportName = `fairhouse-review-`;
-  const uploaded = await client.uploads.uploadFile({
-    attributes: { name: inputName, parent: { id: process.env.BOX_INPUTS_FOLDER_ID } },
-    file: Readable.from(Buffer.from(`FairHouse webhook integration test: ${marker}`)),
+  const prefix = `E${Date.now().toString(36).slice(-4)}`.toUpperCase();
+  const expectedReportName = `${prefix}_expected_results.json`;
+  const upload = async (suffix) => client.uploads.uploadFile({
+    attributes: { name: `${prefix}_${suffix}.txt`, parent: { id: process.env.BOX_INPUTS_FOLDER_ID } },
+    file: Readable.from(Buffer.from(`FairHouse webhook integration test: ${prefix} ${suffix}`)),
   });
-  const fileId = uploaded.entries?.[0]?.id;
-  assert.ok(fileId, "Box did not return the uploaded file ID");
+
+  const first = await upload("one");
+  assert.ok(first.entries?.[0]?.id, "Box did not return the first uploaded file ID");
 
   const deadline = Date.now() + 150_000;
   let report;
@@ -47,9 +47,23 @@ test("Box upload webhook writes a JSON report to the results folder", { skip: !w
     const items = await client.folders.getFolderItems(process.env.BOX_RESULTS_FOLDER_ID, {
       queryParams: { fields: ["id", "name", "type"], limit: 1000 },
     });
-    report = items.entries?.find((item) => item.type === "file" && item.name === `${expectedReportName}${fileId}.json`);
+    report = items.entries?.find((item) => item.type === "file" && item.name === expectedReportName);
     if (!report) await new Promise((resolve) => setTimeout(resolve, 5_000));
   }
 
-  assert.ok(report, `No webhook report appeared for input file ${fileId}`);
+  assert.ok(report, `No webhook report appeared for submission ${prefix}`);
+  const reportId = report.id;
+  const second = await upload("two");
+  assert.ok(second.entries?.[0]?.id, "Box did not return the second uploaded file ID");
+
+  let updated;
+  while (Date.now() < deadline && !updated) {
+    const items = await client.folders.getFolderItems(process.env.BOX_RESULTS_FOLDER_ID, {
+      queryParams: { fields: ["id", "name", "type", "modified_at"], limit: 1000 },
+    });
+    const matching = items.entries?.filter((item) => item.type === "file" && item.name === expectedReportName) || [];
+    updated = matching.length === 1 && matching[0].id === reportId;
+    if (!updated) await new Promise((resolve) => setTimeout(resolve, 5_000));
+  }
+  assert.ok(updated, `Submission ${prefix} did not update exactly one result file`);
 });

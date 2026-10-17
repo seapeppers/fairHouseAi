@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
 import { BoxClient, BoxCcgAuth, CcgConfig } from "box-node-sdk/sdk-gen";
@@ -7,8 +8,15 @@ import {
   isEligibleDocument,
   normalizeExtractResponse,
   parseWebhookEvent,
-  reviewRequired,
+  resultFileName,
+  submissionIdFromFileName,
 } from "./lib/processing.js";
+import { calculateEligibility } from "./lib/eligibility.js";
+
+const [rulesText, incomeLimits] = await Promise.all([
+  readFile(new URL("./data/rules/rules.md", import.meta.url), "utf8"),
+  readFile(new URL("./data/rules/income_limits_mfte_p7_2026.json", import.meta.url), "utf8").then(JSON.parse),
+]);
 
 const required = (name) => {
   const value = process.env[name];
@@ -83,12 +91,12 @@ function verifySignature(headers, body) {
   return matches;
 }
 
-async function decide(extractions, bedrock) {
+async function classify(extractions, bedrock) {
   const prompt = [
-    "You are FairHouse AI's review-routing agent.",
-    "Decide whether extracted affordable-housing evidence needs human review.",
-    "Never make an eligibility determination. Flag only missing, contradictory, low-confidence, or suspicious evidence.",
-    "Return JSON only with this exact shape: {\"manual_review_required\":boolean,\"items\":[{\"file_id\":string,\"reason\":string,\"severity\":\"low\"|\"medium\"|\"high\"}]}",
+    "You are FairHouse AI's document classifier.",
+    "Use the following Seattle MFTE rules as context. Extract facts only; do not calculate eligibility or invent facts.",
+    rulesText,
+    "Return JSON only with this exact shape: {\"items\":[{\"file_id\":string,\"reason\":string,\"severity\":\"low\"|\"medium\"|\"high\"}]}",
     `Extracts: ${JSON.stringify(extractions)}`,
   ].join("\n");
   const response = await bedrock.send(new ConverseCommand({
@@ -101,17 +109,40 @@ async function decide(extractions, bedrock) {
   return JSON.parse(text.replace(/^```json\s*|\s*```$/g, ""));
 }
 
+async function listFolderItems(box, folderId) {
+  const response = await box.folders.getFolderItems(folderId, {
+    queryParams: { fields: ["id", "type", "name", "parent"], limit: 1000 },
+  });
+  return response.entries || [];
+}
+
+async function writeResult(box, folderId, name, content, existing) {
+  const file = Readable.from(Buffer.from(JSON.stringify(content, null, 2)));
+  if (existing) {
+    await box.uploads.uploadFileVersion(existing.id, { attributes: { name }, file });
+    return existing.id;
+  }
+  const uploaded = await box.uploads.uploadFile({
+    attributes: { name, parent: { id: folderId } },
+    file,
+  });
+  return uploaded.entries?.[0]?.id;
+}
+
 async function processWebhook(event, { box = createBoxClient(), bedrock = new BedrockRuntimeClient({}) } = {}) {
   const uploaded = parseWebhookEvent(event);
+  const submissionId = submissionIdFromFileName(uploaded.fileName);
+  if (!submissionId) {
+    console.info("FairHouse webhook ignored file without submission prefix", JSON.stringify({ fileId: uploaded.fileId, fileName: uploaded.fileName }));
+    return { ignored: true, reason: "Missing five-character submission prefix" };
+  }
   console.info("FairHouse webhook processing started", JSON.stringify({
     eventId: uploaded.eventId,
     fileId: uploaded.fileId,
     parentFolderId: uploaded.parentFolderId,
   }));
-  const folderItems = await box.folders.getFolderItems(uploaded.parentFolderId, {
-    queryParams: { fields: ["id", "type", "name", "parent"] },
-  });
-  const files = (folderItems.entries || []).filter(isEligibleDocument);
+  const folderItems = await listFolderItems(box, uploaded.parentFolderId);
+  const files = folderItems.filter((file) => submissionIdFromFileName(file.name) === submissionId && isEligibleDocument(file));
   const extractions = [];
   for (const file of files) {
     let result;
@@ -130,11 +161,11 @@ async function processWebhook(event, { box = createBoxClient(), bedrock = new Be
     }
     extractions.push({ file_id: file.id, file_name: file.name, extract: normalizeExtractResponse(result) });
   }
-  let decision;
+  let classifier;
   try {
-    decision = await decide(extractions, bedrock);
+    classifier = await classify(extractions, bedrock);
   } catch (error) {
-    console.error("FairHouse Bedrock decision failed", JSON.stringify({
+    console.error("FairHouse Bedrock classification failed", JSON.stringify({
       fileId: uploaded.fileId,
       extractionCount: extractions.length,
       modelId: process.env.BEDROCK_MODEL_ID || "amazon.nova-2-lite-v1",
@@ -142,32 +173,16 @@ async function processWebhook(event, { box = createBoxClient(), bedrock = new Be
     }));
     throw error;
   }
-  if (reviewRequired(decision) && process.env.BOX_REVIEWER_USER_ID) {
-    const task = await box.tasks.createTask({
-      item: { type: "file", id: uploaded.fileId },
-      action: "review",
-      message: "FairHouse AI identified evidence requiring manual review. See the uploaded audit report.",
-      completionRule: "all_assignees",
-    });
-    await box.taskAssignments.createTaskAssignment({
-      task: { type: "task", id: task.id },
-      assignTo: { id: process.env.BOX_REVIEWER_USER_ID },
-    });
-  }
-  const report = {
-    schema_version: "1.0",
-    generated_at: new Date().toISOString(),
-    trigger: uploaded,
-    extracts: extractions,
-    manual_review: decision,
-  };
+  const report = calculateEligibility(submissionId, extractions, incomeLimits);
+  if (classifier.items?.length && report.status === "QUALIFIES") report.status = "NEEDS_REVIEW";
+  report.reasons.push(...(classifier.items || []).map((item) => item.reason));
   const destinationFolderId = process.env.BOX_RESULTS_FOLDER_ID || uploaded.parentFolderId;
-  let uploadedReport;
+  const resultName = resultFileName(submissionId);
+  const destinationItems = await listFolderItems(box, destinationFolderId);
+  const existing = destinationItems.find((item) => item.type === "file" && item.name === resultName);
+  let reportFileId;
   try {
-    uploadedReport = await box.uploads.uploadFile({
-      attributes: { name: `fairhouse-review-${uploaded.fileId}.json`, parent: { id: destinationFolderId } },
-      file: Readable.from(Buffer.from(JSON.stringify(report, null, 2))),
-    });
+    reportFileId = await writeResult(box, destinationFolderId, resultName, report, existing);
   } catch (error) {
     console.error("FairHouse report upload failed", JSON.stringify({
       fileId: uploaded.fileId,
@@ -176,7 +191,7 @@ async function processWebhook(event, { box = createBoxClient(), bedrock = new Be
     }));
     throw error;
   }
-  return { reportFileId: uploadedReport.entries?.[0]?.id, manualReviewRequired: reviewRequired(decision) };
+  return { reportFileId, submissionId, status: report.status, updated: Boolean(existing) };
 }
 
 export const handler = async (event) => {

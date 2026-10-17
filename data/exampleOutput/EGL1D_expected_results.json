@@ -1,0 +1,27 @@
+{
+  "household": "EGL1D",
+  "name": null,
+  "unit": null,
+  "household_size": null,
+  "unit_ami_pct": null,
+  "income_limit": null,
+  "annual_wage_income_from_stubs": null,
+  "bank_statement_months_provided": 0,
+  "bank_deposit_totals": {},
+  "payroll_deposits_in_bank": 0,
+  "non_payroll_deposits": [],
+  "status": "MISSING_INFO",
+  "projected_annual_income": null,
+  "reasons": [
+    "Only 0 of the 3 required consecutive monthly bank statements were provided.",
+    "Only 0 of the 3 required months of pay stubs were provided.",
+    "Applicant name is missing from the submitted documents.",
+    "Unit number is missing from the submitted documents.",
+    "Household size is missing from the submitted documents.",
+    "Unit AMI percentage is missing from the submitted documents.",
+    "Annual wage income could not be calculated from the submitted pay stubs.",
+    "Income limit could not be determined from household size and unit AMI percentage.",
+    "Document is a test file and contains no relevant data.",
+    "The document is a test file and contains no relevant information for the requested fields."
+  ]
+}
