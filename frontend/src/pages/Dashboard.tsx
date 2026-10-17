@@ -71,7 +71,8 @@ export default function Dashboard() {
           )}
         </div>
 
-        <h1 className="mt-6 font-serif text-[40px] leading-tight font-semibold">{building}</h1>
+        <p className="mt-6 text-[13px] font-semibold tracking-[0.08em] text-evergreen uppercase">Compliance review</p>
+        <h1 className="mt-1 font-serif text-[40px] leading-tight font-semibold">{building}</h1>
 
         {error && (
           <div className="mt-6">

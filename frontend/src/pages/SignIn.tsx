@@ -50,7 +50,7 @@ export default function SignIn() {
             AI checks each tenant’s income file against the program rules and shows the proof. Reviews are quick, and fair to everyone.
           </p>
           <p className="mt-2 max-w-[540px] text-[15px] font-medium text-evergreen">
-            For property managers certifying tenants, and agencies auditing them.
+            For housing agency compliance reviewers, and the property managers who send them files.
           </p>
           <ul className="mt-8 flex list-none flex-col gap-3.5 p-0">
             {PROMISES.map((p) => (
