@@ -5,5 +5,5 @@ __pycache__/
 .DS_Store
 node_modules/
 
-# Box tokens saved by the backend
-backend/.box_service_token.json
+# Box tokens saved by the backend (the SDK appends .db)
+backend/.box_service_token.json*
