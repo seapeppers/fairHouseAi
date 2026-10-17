@@ -4,8 +4,9 @@ The agent (webhook/ Lambda) writes one file per household to Reviews / Agent res
 
     <household folder id>_check_result.json
 
-with its status, income math and reasons, plus `facts`: each value it relied on,
-written exactly as printed in a document. See docs/agent-result-example.json.
+with its status, income math and reasons, `flags` (the reasons a person must look at)
+and `facts`: each value it relied on, written exactly as printed in a document.
+See docs/agent-result-example.json.
 
 Box AI does not say where a value sits in a PDF, so this module grounds every fact
 itself: it searches the file's text for the value and quotes the line it is on.
@@ -24,6 +25,7 @@ RESULT_SUFFIX = "_check_result.json"
 DEMOGRAPHIC = re.compile(r"demographic", re.I)
 MISSING = re.compile(r"\bmissing\b|^only \d+ of", re.I)
 REVIEW = re.compile(r"recurring|explanation form|over \$500|mismatch|does not match|unclear", re.I)
+DEPOSIT_FLAG = re.compile(r"deposit|payroll|recurring", re.I)
 STEP_TITLES = {
     "documents": "Required documents",
     "wages": "Income from wages",
@@ -84,6 +86,13 @@ def ground(pages: list[list[str]], value: str, context: str = "", page_hint: int
             for j in range(i - 1, max(i - 4, -1), -1):
                 if context in lines[j]:
                     return p + 1, " ".join(lines[j:i + 1])
+    # A table row (date, description, amount) is split over several lines. The viewer
+    # matches against the page's text joined with single spaces, so search that too.
+    for p in order:
+        joined = " ".join(pages[p])
+        at = joined.find(value)
+        if at >= 0 and (not context or context in value or context in joined[max(at - 200, 0):at]):
+            return p + 1, value
     return None
 
 
@@ -115,7 +124,11 @@ def to_check_result(user, result: dict, household_id: str, unit: str, name: str,
             ungrounded[step].append(f"Could not find “{fact.get('value')}” ({label}) in {file_name}")
 
     missing = [r for r in reasons if MISSING.search(r)]
-    flags = [r for r in reasons if REVIEW.search(r) and r not in missing]
+    # The agent lists what needs a person in "flags"; older results only have reasons.
+    flags = result.get("flags")
+    if flags is None:
+        flags = [r for r in reasons if REVIEW.search(r) and r not in missing]
+    deposit_flags = [f for f in flags if DEPOSIT_FLAG.search(f)]
     wages = result.get("annual_wage_income_from_stubs")
     non_payroll = result.get("non_payroll_deposits") or []
 
@@ -124,8 +137,8 @@ def to_check_result(user, result: dict, household_id: str, unit: str, name: str,
          "detail": " ".join(missing) or "All required documents are on file."},
         {"id": "wages", "result": "pass" if wages is not None else "fail", "amount": wages,
          "detail": f"Annual wage income from pay stubs: {_money(wages)}."},
-        {"id": "deposits", "result": "warn" if flags else "pass", "amount": result.get("payroll_deposits_in_bank"),
-         "detail": " ".join(flags) or f"Payroll deposits match; {len(non_payroll)} other deposit(s) are not income."},
+        {"id": "deposits", "result": "warn" if deposit_flags else "pass", "amount": result.get("payroll_deposits_in_bank"),
+         "detail": " ".join(deposit_flags) or f"Payroll deposits match; {len(non_payroll)} other deposit(s) are not income."},
     ]
     if projected is None or limit is None:
         steps.append({"id": "limit", "result": "warn", "detail": "Income or limit unknown, so they cannot be compared."})
@@ -135,7 +148,7 @@ def to_check_result(user, result: dict, household_id: str, unit: str, name: str,
                       "result_label": "Over limit" if over else None,
                       "detail": f"{_money(projected)} is {'over' if over else 'under'} the {_money(limit)} limit "
                                 f"for a {result.get('household_size')}-person household at {result.get('unit_ami_pct')}% AMI."})
-    other = [r for r in reasons if r not in missing and r not in flags and not re.search(r"wage|limit|recurring", r, re.I)]
+    other = [f for f in flags if f not in deposit_flags]
     if other or evidence["review"] or ungrounded["review"]:
         steps.append({"id": "review", "result": "warn", "detail": " ".join(other) or "See the cited documents."})
 

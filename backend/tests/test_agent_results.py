@@ -108,3 +108,23 @@ def test_missing_documents_and_unknown_income(run):
     assert out["status"] == "MISSING_INFO"
     assert step(out, "documents")["result"] == "fail"
     assert step(out, "limit")["result"] == "warn"
+
+
+def test_row_split_over_lines_is_found(run):
+    result = copy.deepcopy(EXAMPLE)
+    row = "07/17/2026   EVERGREEN ROASTERS LLC PAYROLL DIRECT DEP     $1,581.12"
+    result["facts"] = [{"step": "deposits", "label": "Row", "value": row, "file_id": "2533013572529"}]
+    evidence = step(run(result), "deposits")["evidence"]
+    assert evidence == [{"file_id": "2533013572529", "file_name": "bank_statement_2026-07.pdf", "page": 1,
+                         "quote": "07/17/2026 EVERGREEN ROASTERS LLC PAYROLL DIRECT DEP $1,581.12"}]
+
+
+def test_only_flags_raise_warnings(run):
+    result = copy.deepcopy(EXAMPLE)
+    result["reasons"] += ["Payroll deposits match the net pay on the stubs.", "Other deposits are not income."]
+    out = run(result)
+    assert out["status"] == "QUALIFIES" and [s["id"] for s in out["steps"]] == ["documents", "wages", "deposits", "limit"]
+    result["flags"] = ["The Sep 25 stub's year-to-date gross does not add up.", "Recurring deposits from R BROOKS count as income."]
+    out = run(result)
+    assert step(out, "deposits")["result"] == "warn" and step(out, "review")["result"] == "warn"
+    assert out["status"] == "NEEDS_REVIEW"
