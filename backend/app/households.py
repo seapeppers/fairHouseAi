@@ -249,7 +249,8 @@ def decide(household_id: str, body: DecisionInput, user: User = Depends(require_
     building = result["building"]
     now = datetime.now(timezone.utc)
     day = now.strftime("%Y-%m-%d")
-    record_id = f"FH-{now.year}-{1517 + len(_audit)}"
+    # Unique across server restarts, so Box never sees two files with the same name.
+    record_id = f"FH-{now:%Y%m%d-%H%M%S}"
     evidence = [e for s in result["steps"] if s["result"] != "pass" for e in s["evidence"]]
 
     ai_name = f"{building} - Unit {unit} - AI review {day} {record_id}.json"
