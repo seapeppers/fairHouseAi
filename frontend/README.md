@@ -54,8 +54,11 @@ Additions to the original result format, all optional:
 - `AuditRecord.audit_url`: link to the signed record in Box ("Open in Box")
 - `AuditRecord.box_metadata`: the `fairhouseReview` labels applied to the household folder, e.g. `{ "Status": "Approved", "Projected income": "$49,920", ... }`
 - `AuditRecord.household_name`, `unit`: shown in the audit log
+- `AuditRecord.box_path`: the signed decision in `Reviews / Final decisions /` (locked folder)
+- `AuditRecord.ai_review_path`: the AI's findings report in `Reviews / AI reviews /`
+- `AuditRecord.locked`: true once signed (shows "Locked"); `record_sha256`: optional checksum of the signed record, shown as a fingerprint
 
-The decision endpoint should save a signed record PDF into the household's Box folder and apply the `fairhouseReview` metadata. It must never modify the tenant's original documents.
+The decision endpoint should save two files: the AI review report to `Reviews / AI reviews /` and the signed decision to `Reviews / Final decisions /`, then lock the signed file (Box retention policy if the account allows it, otherwise file lock and read-only access). It applies the `fairhouseReview` metadata to the household folder and never modifies the tenant's original documents. Corrections add a new record; signed records are never edited.
 
 Mock mode keeps decisions and uploads in sessionStorage. Use "Reset demo data" on the sign-in page before a demo.
 

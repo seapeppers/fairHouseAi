@@ -101,7 +101,14 @@ export interface AuditRecord {
   evidence: Evidence[]
   /** Link to the signed record in Box, when the backend has one. */
   audit_url?: string
+  /** Signed decision, in the locked `Reviews / Final decisions` folder. */
   box_path: string
+  /** The AI's findings report, in `Reviews / AI reviews`. */
+  ai_review_path?: string
+  /** True once signed: the record can't be edited; corrections add a new record. */
+  locked?: boolean
+  /** Checksum of the signed record, when the backend computes one. */
+  record_sha256?: string
   rules_version: string
   /** Labels applied to the household's Box folder (fairhouseReview template). */
   box_metadata?: Record<string, string>

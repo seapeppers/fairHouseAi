@@ -9,9 +9,6 @@ import type { CheckResult, DocumentRef, Evidence } from '../types'
 
 export const visitedKey = (id: string) => `fairhouse.visited.${id}`
 
-/** How long the walkthrough shows each piece of proof. */
-const BEAT_MS = 4200
-
 export default function Review() {
   const { id = '' } = useParams()
   const [params] = useSearchParams()
@@ -27,7 +24,6 @@ export default function Review() {
   const [browse, setBrowse] = useState<{ file_id: string; page: number } | null>(null)
   const [pageCount, setPageCount] = useState(1)
   const [visited, setVisited] = useState<Set<number>>(new Set([0]))
-  const [tour, setTour] = useState<'off' | 'playing' | 'finished'>('off')
 
   const runCheck = useCallback(
     (opts: { fresh?: boolean } = {}) => {
@@ -78,27 +74,20 @@ export default function Review() {
     setVisited((v) => new Set(v).add(i))
   }, [])
 
-  // Walkthrough: show each piece of proof, then move to the next finding.
+  // Left/right arrow keys step through findings, unless the user is typing.
+  const stepCount = result?.steps.length ?? 0
   useEffect(() => {
-    if (tour !== 'playing' || !result || !step) return
-    const t = setTimeout(() => {
-      if (evIdx < step.evidence.length - 1) {
-        setEvIdx(evIdx + 1)
-        setBrowse(null)
-      } else if (stepIdx < result.steps.length - 1) {
-        goTo(stepIdx + 1)
-      } else {
-        setTour('finished')
-      }
-    }, BEAT_MS)
-    return () => clearTimeout(t)
-  }, [tour, result, step, stepIdx, evIdx, goTo])
-
-  /** Any manual navigation takes over from the walkthrough. */
-  function manual(fn: () => void) {
-    if (tour === 'playing') setTour('off')
-    fn()
-  }
+    function onKey(e: KeyboardEvent) {
+      const t = e.target as HTMLElement
+      if (e.metaKey || e.ctrlKey || e.altKey || t.closest('input, textarea, select')) return
+      if (e.key === 'ArrowRight' && stepIdx < stepCount - 1) goTo(stepIdx + 1)
+      else if (e.key === 'ArrowLeft' && stepIdx > 0) goTo(stepIdx - 1)
+      else return
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [stepIdx, stepCount, goTo])
 
   if (error)
     return (
@@ -122,7 +111,6 @@ export default function Review() {
   const currentDoc = docs.find((d) => d.file_id === view?.file_id)
   const isLast = stepIdx === result.steps.length - 1
   const r = RESULT[step.result]
-  const beats = result.steps.reduce((n, s) => n + Math.max(1, s.evidence.length), 0)
 
   return (
     <div className="flex min-h-screen flex-col lg:h-screen lg:overflow-hidden">
@@ -149,7 +137,7 @@ export default function Review() {
             {docs.map((d) => (
               <button
                 key={d.file_id}
-                onClick={() => manual(() => setBrowse({ file_id: d.file_id, page: d.file_id === view?.file_id ? view.page : 1 }))}
+                onClick={() => setBrowse({ file_id: d.file_id, page: d.file_id === view?.file_id ? view.page : 1 })}
                 aria-pressed={d.file_id === view?.file_id}
                 className={`cursor-pointer rounded-full px-3 py-1.5 ${
                   d.file_id === view?.file_id ? 'bg-evergreen font-medium text-white' : 'bg-white text-ink hover:bg-evergreen-wash'
@@ -164,7 +152,7 @@ export default function Review() {
                   <button
                     aria-label="Previous page"
                     disabled={view.page <= 1}
-                    onClick={() => manual(() => setBrowse({ file_id: view.file_id, page: view.page - 1 }))}
+                    onClick={() => setBrowse({ file_id: view.file_id, page: view.page - 1 })}
                     className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-white disabled:opacity-40"
                   >
                     ‹
@@ -172,7 +160,7 @@ export default function Review() {
                   <button
                     aria-label="Next page"
                     disabled={view.page >= pageCount}
-                    onClick={() => manual(() => setBrowse({ file_id: view.file_id, page: view.page + 1 }))}
+                    onClick={() => setBrowse({ file_id: view.file_id, page: view.page + 1 })}
                     className="grid h-7 w-7 cursor-pointer place-items-center rounded-full bg-white disabled:opacity-40"
                   >
                     ›
@@ -190,19 +178,6 @@ export default function Review() {
 
         <aside aria-label="Findings" className="flex w-full flex-col gap-3 lg:min-h-0 lg:w-[400px] lg:flex-none">
           <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:overflow-auto lg:pr-1">
-            <Walkthrough
-              state={tour}
-              seconds={Math.round((beats * BEAT_MS) / 1000)}
-              beatKey={`${stepIdx}-${evIdx}`}
-              position={`Finding ${stepIdx + 1} of ${result.steps.length}`}
-              onStart={() => {
-                goTo(0)
-                setTour('playing')
-              }}
-              onStop={() => setTour('off')}
-              onDecide={() => navigate(`/households/${id}/decision`)}
-            />
-
             <ol aria-label="All checks" className="m-0 flex list-none flex-col gap-0.5 rounded-2xl bg-white p-1.5 text-sm shadow-[0_0_0_1px_var(--color-line)]">
               {result.steps.map((s, i) => {
                 const sr = RESULT[s.result]
@@ -210,7 +185,7 @@ export default function Review() {
                 return (
                   <li key={s.id}>
                     <button
-                      onClick={() => manual(() => goTo(i))}
+                      onClick={() => goTo(i)}
                       aria-current={active ? 'step' : undefined}
                       className={`flex w-full cursor-pointer items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-left ${
                         active ? 'bg-evergreen-tint font-semibold' : 'hover:bg-mist'
@@ -239,12 +214,10 @@ export default function Review() {
                 return (
                   <button
                     key={`${e.file_id}-${e.page}-${i}`}
-                    onClick={() =>
-                      manual(() => {
-                        setEvIdx(i)
-                        setBrowse(null)
-                      })
-                    }
+                    onClick={() => {
+                      setEvIdx(i)
+                      setBrowse(null)
+                    }}
                     aria-pressed={selected}
                     className={`mt-1 flex w-full cursor-pointer gap-3 rounded-[10px] px-3 py-2.5 text-left ${selected ? 'bg-marker-wash' : 'hover:bg-mist'}`}
                   >
@@ -275,7 +248,7 @@ export default function Review() {
           </div>
 
           <div className="flex flex-none gap-2.5">
-            <SecondaryButton disabled={stepIdx === 0} onClick={() => manual(() => goTo(stepIdx - 1))}>
+            <SecondaryButton disabled={stepIdx === 0} onClick={() => goTo(stepIdx - 1)}>
               Back
             </SecondaryButton>
             {isLast ? (
@@ -283,7 +256,7 @@ export default function Review() {
                 Continue to decision →
               </PrimaryButton>
             ) : (
-              <PrimaryButton className="flex-1" onClick={() => manual(() => goTo(stepIdx + 1))}>
+              <PrimaryButton className="flex-1" onClick={() => goTo(stepIdx + 1)}>
                 Next finding →
               </PrimaryButton>
             )}
@@ -293,65 +266,10 @@ export default function Review() {
               Skip to decision
             </Link>
           )}
+          <p className="flex-none text-center text-xs text-faint">Tip: use the ← → keys to move between findings</p>
         </aside>
       </main>
     </div>
-  )
-}
-
-function Walkthrough({
-  state,
-  seconds,
-  beatKey,
-  position,
-  onStart,
-  onStop,
-  onDecide,
-}: {
-  state: 'off' | 'playing' | 'finished'
-  seconds: number
-  beatKey: string
-  position: string
-  onStart: () => void
-  onStop: () => void
-  onDecide: () => void
-}) {
-  if (state === 'playing')
-    return (
-      <div className="rounded-2xl bg-evergreen px-4 py-3 text-white" aria-live="polite">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold">Walkthrough · {position}</span>
-          <button onClick={onStop} className="ml-auto cursor-pointer rounded-full bg-white/15 px-3 py-1 text-[13px] font-semibold hover:bg-white/25">
-            Stop
-          </button>
-        </div>
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/20">
-          <div key={beatKey} className="animate-fill h-full rounded-full bg-marker" style={{ animationDuration: `${BEAT_MS}ms` }} />
-        </div>
-      </div>
-    )
-  if (state === 'finished')
-    return (
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-evergreen-tint px-4 py-3">
-        <span className="text-sm font-semibold text-evergreen">You’ve seen every finding and its proof.</span>
-        <button onClick={onDecide} className="ml-auto cursor-pointer rounded-full bg-evergreen px-3.5 py-1.5 text-[13px] font-semibold text-white">
-          Make a decision →
-        </button>
-      </div>
-    )
-  return (
-    <button
-      onClick={onStart}
-      className="flex cursor-pointer items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left shadow-[0_0_0_1px_var(--color-line)] hover:bg-evergreen-wash"
-    >
-      <span className="grid h-9 w-9 flex-none place-items-center rounded-full bg-evergreen text-white" aria-hidden="true">
-        ▶
-      </span>
-      <span>
-        <span className="block font-semibold">Walk me through</span>
-        <span className="text-[13px] text-muted">Plays every finding with its proof highlighted · about {seconds}s</span>
-      </span>
-    </button>
   )
 }
 

@@ -209,7 +209,9 @@ export const api = {
         decided_at: now.toISOString(),
         ai_status: r.status,
         evidence: r.steps.flatMap((s) => (s.result === 'pass' ? [] : s.evidence)),
-        box_path: `Compliance / ${r.building} / Unit ${r.unit} / fairhouse_record_${now.toISOString().slice(0, 10)}.pdf`,
+        box_path: `Reviews / Final decisions / ${r.building} · Unit ${r.unit} · signed decision ${now.toISOString().slice(0, 10)}.pdf`,
+        ai_review_path: `Reviews / AI reviews / ${r.building} · Unit ${r.unit} · AI review ${now.toISOString().slice(0, 10)}.pdf`,
+        locked: true,
         rules_version: r.rules_version,
         box_metadata: {
           Status: status,

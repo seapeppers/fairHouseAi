@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../api'
 import { ArrowRightIcon, PenIcon } from '../components/Icons'
 import { HomeHeader } from '../components/Shell'
-import { ErrorState, Spinner, StatusBadge } from '../components/ui'
+import { ErrorState, LockedBadge, Spinner, StatusBadge } from '../components/ui'
 import type { AuditRecord } from '../types'
 
 const DECISION = {
@@ -28,7 +28,7 @@ export default function AuditLog() {
       <HomeHeader />
       <main className="mx-auto max-w-[1120px] px-8 pt-6 pb-12">
         <h1 className="font-serif text-[40px] leading-tight font-semibold">Audit log</h1>
-        <p className="mt-1.5 text-muted">Every signed decision: who decided, when, why, and what the AI suggested. Each record is also saved in Box.</p>
+        <p className="mt-1.5 text-muted">Every signed decision: who decided, when, why, and what the AI suggested. Signed records are locked in Box and can’t be edited.</p>
 
         {error && (
           <div className="mt-6">
@@ -62,7 +62,10 @@ export default function AuditLog() {
                   >
                     <div className="w-[150px] text-[13px] text-muted">
                       {new Date(r.decided_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
-                      <div className="text-xs">{r.record_id}</div>
+                      <div className="flex items-center gap-1.5 text-xs">
+                        {r.record_id}
+                        {r.locked !== false && <LockedBadge />}
+                      </div>
                     </div>
                     <div className="flex-[1_1_220px]">
                       <div className="font-semibold">

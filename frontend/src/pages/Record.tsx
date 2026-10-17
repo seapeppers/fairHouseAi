@@ -3,7 +3,7 @@ import { Link, Navigate, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { CheckIcon, FolderIcon, LockIcon } from '../components/Icons'
 import { FlowHeader } from '../components/Shell'
-import { BoxMark, money, ProgressPills, Spinner } from '../components/ui'
+import { BoxMark, LockedBadge, money, ProgressPills, Spinner } from '../components/ui'
 import type { AuditRecord, CheckResult } from '../types'
 
 const DECISION_TEXT = {
@@ -39,7 +39,7 @@ export default function Record() {
   const subtitle =
     record.decision === 'request_info'
       ? `The property manager sees ${record.requested_documents.length} requested document${record.requested_documents.length === 1 ? '' : 's'} on their upload page. This household now shows “Waiting on documents”.`
-      : 'The household’s folder in Box now includes this signed record.'
+      : 'The signed decision is saved and locked in Box, next to the AI’s review.'
   const labels = record.box_metadata ?? {
     Status: DECISION_TEXT[record.decision],
     'Projected income': money(result.projected_annual_income),
@@ -86,6 +86,11 @@ export default function Record() {
           <div>
             <h1 className="font-serif text-[32px] leading-tight font-semibold">Decision signed and saved to Box</h1>
             <p className="mt-1 text-muted">{subtitle}</p>
+            {record.locked !== false && (
+              <p className="mt-1.5 inline-flex items-center gap-1.5 text-[13px] text-muted">
+                <LockIcon className="text-evergreen" /> Signed records can’t be edited. Corrections add a new record.
+              </p>
+            )}
           </div>
         </div>
 
@@ -124,11 +129,24 @@ export default function Record() {
             )}
           </div>
           <ul className="mt-3 flex list-none flex-col gap-3 p-0 text-sm">
+            {record.ai_review_path && (
+              <li className="flex items-start gap-2.5">
+                <FolderIcon className="mt-0.5 flex-none text-evergreen" />
+                <span>
+                  <strong className="font-semibold">AI review saved</strong>
+                  <span className="block text-muted">{record.ai_review_path}</span>
+                </span>
+              </li>
+            )}
             <li className="flex items-start gap-2.5">
               <FolderIcon className="mt-0.5 flex-none text-evergreen" />
               <span>
-                <strong className="font-semibold">Signed record added</strong>
+                <strong className="font-semibold">Signed decision saved</strong>
+                {record.locked !== false && <LockedBadge className="ml-2" />}
                 <span className="block text-muted">{record.box_path}</span>
+                {record.record_sha256 && (
+                  <span className="block font-mono text-xs text-faint">Fingerprint {record.record_sha256.slice(0, 16)}…</span>
+                )}
               </span>
             </li>
             <li className="flex items-start gap-2.5">

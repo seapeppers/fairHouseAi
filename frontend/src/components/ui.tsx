@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { Status, StepResult } from '../types'
-import { CheckIcon, DocQuestionIcon, FlagIcon, XIcon } from './Icons'
+import { CheckIcon, DocQuestionIcon, FlagIcon, LockIcon, XIcon } from './Icons'
 
 export const money = (n: number) =>
   n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
@@ -152,5 +152,14 @@ export function ErrorState({ message, onRetry, children }: { message: string; on
       )}
       {children}
     </div>
+  )
+}
+
+/** Shown on signed records: they can't be edited after signing. */
+export function LockedBadge({ className = '' }: { className?: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full bg-ink px-2 py-0.5 align-middle text-[11px] font-semibold text-white ${className}`}>
+      <LockIcon size={11} /> Locked
+    </span>
   )
 }
