@@ -3,7 +3,7 @@ import { Link, Navigate, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { CheckIcon, FolderIcon, LockIcon } from '../components/Icons'
 import { FlowHeader } from '../components/Shell'
-import { BoxMark, LockedBadge, money, ProgressPills, Spinner } from '../components/ui'
+import { BoxMark, LockedBadge, ProgressPills, Spinner } from '../components/ui'
 import type { AuditRecord, CheckResult } from '../types'
 
 const DECISION_TEXT = {
@@ -39,14 +39,8 @@ export default function Record() {
   const subtitle =
     record.decision === 'request_info'
       ? `The property manager sees ${record.requested_documents.length} requested document${record.requested_documents.length === 1 ? '' : 's'} on their upload page. This household now shows “Waiting on documents”.`
-      : 'The signed decision is saved and locked in Box, next to the AI’s review.'
-  const labels = record.box_metadata ?? {
-    Status: DECISION_TEXT[record.decision],
-    'Projected income': money(result.projected_annual_income),
-    'Income limit': money(result.income_limit),
-    'Reviewed by': record.decided_by,
-    'Reviewed at': new Date(record.decided_at).toLocaleDateString('en-US', { dateStyle: 'medium' }),
-  }
+      : `The signed decision is saved${record.locked ? ' and locked' : ''} in Box, next to the AI’s review.`
+  const labels = record.box_metadata
 
   const rows: [string, React.ReactNode][] = [
     ['Decision', <strong className="font-semibold">{DECISION_TEXT[record.decision]}</strong>],
@@ -86,10 +80,16 @@ export default function Record() {
           <div>
             <h1 className="font-serif text-[32px] leading-tight font-semibold">Decision signed and saved to Box</h1>
             <p className="mt-1 text-muted">{subtitle}</p>
-            {record.locked !== false && (
+            {record.locked ? (
               <p className="mt-1.5 inline-flex items-center gap-1.5 text-[13px] text-muted">
                 <LockIcon className="text-evergreen" /> Signed records can’t be edited. Corrections add a new record.
               </p>
+            ) : (
+              record.record_sha256 && (
+                <p className="mt-1.5 inline-flex items-center gap-1.5 text-[13px] text-muted">
+                  <LockIcon className="text-evergreen" /> Any change to this record is detectable with its fingerprint. Corrections add a new record.
+                </p>
+              )
             )}
           </div>
         </div>
@@ -142,26 +142,28 @@ export default function Record() {
               <FolderIcon className="mt-0.5 flex-none text-evergreen" />
               <span>
                 <strong className="font-semibold">Signed decision saved</strong>
-                {record.locked !== false && <LockedBadge className="ml-2" />}
+                {record.locked && <LockedBadge className="ml-2" />}
                 <span className="block text-muted">{record.box_path}</span>
                 {record.record_sha256 && (
                   <span className="block font-mono text-xs text-faint">Fingerprint {record.record_sha256.slice(0, 16)}…</span>
                 )}
               </span>
             </li>
-            <li className="flex items-start gap-2.5">
-              <CheckIcon className="mt-0.5 flex-none text-evergreen" />
-              <span className="min-w-0">
-                <strong className="font-semibold">Folder labels updated</strong>
-                <span className="mt-1.5 flex flex-wrap gap-1.5">
-                  {Object.entries(labels).map(([k, v]) => (
-                    <span key={k} className="rounded-md bg-evergreen-wash px-2 py-0.5 text-[13px] shadow-[0_0_0_1px_var(--color-evergreen-tint)]">
-                      <span className="text-muted">{k}:</span> {v}
-                    </span>
-                  ))}
+            {labels && (
+              <li className="flex items-start gap-2.5">
+                <CheckIcon className="mt-0.5 flex-none text-evergreen" />
+                <span className="min-w-0">
+                  <strong className="font-semibold">Folder labels updated</strong>
+                  <span className="mt-1.5 flex flex-wrap gap-1.5">
+                    {Object.entries(labels).map(([k, v]) => (
+                      <span key={k} className="rounded-md bg-evergreen-wash px-2 py-0.5 text-[13px] shadow-[0_0_0_1px_var(--color-evergreen-tint)]">
+                        <span className="text-muted">{k}:</span> {v}
+                      </span>
+                    ))}
+                  </span>
                 </span>
-              </span>
-            </li>
+              </li>
+            )}
             <li className="flex items-start gap-2.5">
               <LockIcon className="mt-0.5 flex-none text-evergreen" />
               <span>

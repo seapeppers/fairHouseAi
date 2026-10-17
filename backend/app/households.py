@@ -276,9 +276,10 @@ def decide(household_id: str, body: DecisionInput, user: User = Depends(require_
     final_name = f"{building} - Unit {unit} - signed decision {day} {record_id}.pdf"
     final_id = _upload(user, _review_folder(user, "Final decisions"), final_name, pdf)
 
-    locked = True
+    # Only claim a lock that Box confirms; some Box plans don't allow file locks.
     try:
         user.box.files.update_file_by_id(final_id, lock=UpdateFileByIdLock(access=UpdateFileByIdLockAccessField.LOCK))
+        locked = user.box.files.get_file_by_id(final_id, fields=["lock"]).lock is not None
     except BoxAPIError:
         locked = False
 
@@ -289,6 +290,7 @@ def decide(household_id: str, body: DecisionInput, user: User = Depends(require_
         "Reviewed by": user.name,
         "Reviewed at": now.strftime("%b %-d, %Y"),
     }
+    labels_applied = True
     try:
         user.box.folder_metadata.create_folder_metadata_by_id(
             household_id, CreateFolderMetadataByIdScope.ENTERPRISE, "fairhouseReview",
@@ -297,7 +299,7 @@ def decide(household_id: str, body: DecisionInput, user: User = Depends(require_
              "reviewedAt": now.strftime("%Y-%m-%dT00:00:00Z")},
         )
     except BoxAPIError:
-        pass  # Template missing, or labels already set: the record itself is what counts.
+        labels_applied = False  # Template missing on this Box plan: the record itself is what counts.
 
     record = {
         "record_id": record_id,
@@ -317,7 +319,7 @@ def decide(household_id: str, body: DecisionInput, user: User = Depends(require_
         "locked": locked,
         "record_sha256": hashlib.sha256(pdf).hexdigest(),
         "rules_version": result["rules_version"],
-        "box_metadata": labels,
+        "box_metadata": labels if labels_applied else None,
     }
     _records[household_id] = record
     _audit.append(record)
